@@ -29,42 +29,13 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
 
   const loadSubmissions = async () => {
     try {
-      // In a real app, you'd have a getSubmissionsByAssignment method
-      const mockSubmissions: AssignmentSubmission[] = [
-        {
-          id: "1",
-          assignmentId: assignment.id,
-          studentId: "student1",
-          content:
-            "This is my submission for the assignment. I have completed all the required tasks and included detailed explanations for each section.",
-          submittedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          grade: 85,
-          feedback: "Good work overall, but could use more detail in section 2.",
-          gradedBy: user.id,
-          gradedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "2",
-          assignmentId: assignment.id,
-          studentId: "student2",
-          content:
-            "Here is my completed assignment. I researched the topic thoroughly and provided comprehensive answers to all questions.",
-          submittedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "3",
-          assignmentId: assignment.id,
-          studentId: "student3",
-          content: "My assignment submission with detailed analysis and supporting evidence.",
-          submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-        },
-      ]
-      setSubmissions(mockSubmissions)
-      if (mockSubmissions.length > 0) {
-        setSelectedSubmission(mockSubmissions[0])
+      const dbSubmissions = await db.getSubmissionsByAssignment(assignment.id)
+      setSubmissions(dbSubmissions)
+      if (dbSubmissions.length > 0) {
+        setSelectedSubmission(dbSubmissions[0])
         setGradeData({
-          grade: mockSubmissions[0].grade?.toString() || "",
-          feedback: mockSubmissions[0].feedback || "",
+          grade: dbSubmissions[0].grade?.toString() || "",
+          feedback: dbSubmissions[0].feedback || "",
         })
       }
     } catch (error) {
@@ -106,8 +77,7 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
         gradedAt: new Date(),
       }
 
-      // In a real app, you'd save this to the database
-      console.log("Saving grade:", updatedSubmission)
+      await db.saveSubmission(updatedSubmission)
 
       // Update local state
       setSubmissions(submissions.map((s) => (s.id === selectedSubmission.id ? updatedSubmission : s)))
@@ -129,13 +99,7 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
   }
 
   const getStudentName = (studentId: string) => {
-    // In a real app, you'd fetch student names from the database
-    const names = {
-      student1: "Alice Johnson",
-      student2: "Bob Smith",
-      student3: "Carol Davis",
-    }
-    return names[studentId as keyof typeof names] || `Student ${studentId}`
+    return `Student ${studentId.slice(0, 4)}`
   }
 
   if (isLoading) {

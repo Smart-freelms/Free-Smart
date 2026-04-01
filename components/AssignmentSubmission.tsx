@@ -27,8 +27,14 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
 
   const loadExistingSubmission = async () => {
     try {
-      // In a real app, you'd have a getSubmissionByAssignmentAndStudent method
-      console.log("Loading existing submission for assignment:", assignment.id, "student:", user.id)
+      const submission = await db.getSubmissionByAssignmentAndStudent(assignment.id, user.id)
+      if (submission) {
+        setExistingSubmission(submission)
+        setSubmissionData({
+          content: submission.content,
+          fileUrl: submission.fileUrl
+        })
+      }
     } catch (error) {
       console.error("Failed to load existing submission:", error)
     }
@@ -60,10 +66,13 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
         content: submissionData.content || "",
         fileUrl: submissionData.fileUrl,
         submittedAt: new Date(),
+        grade: existingSubmission?.grade,
+        feedback: existingSubmission?.feedback,
+        gradedBy: existingSubmission?.gradedBy,
+        gradedAt: existingSubmission?.gradedAt
       }
 
-      // In a real app, you'd have a saveSubmission method
-      console.log("Saving submission:", submission)
+      await db.saveSubmission(submission)
       setSuccess("Assignment submitted successfully!")
       setExistingSubmission(submission)
     } catch (error) {
