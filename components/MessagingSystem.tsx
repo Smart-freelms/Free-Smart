@@ -57,6 +57,9 @@ export const MessagingSystem: React.FC<MessagingSystemProps> = ({ user, onBack }
             id: otherId,
             participants: [user.id, otherId],
             lastMessage: {
+              id: msg.id,
+              senderId: msg.senderId,
+              receiverId: msg.receiverId,
               content: msg.content,
               sentAt: new Date(msg.createdAt),
               isRead: msg.isRead
@@ -112,17 +115,6 @@ export const MessagingSystem: React.FC<MessagingSystemProps> = ({ user, onBack }
       receiverId,
       subject: "Direct Message",
       content: newMessage
-    })
-
-    // Notify Recipient
-    await db.saveNotification({
-      id: Date.now().toString() + "-notif",
-      userId: receiverId,
-      title: "New Message",
-      message: `You received a new message from ${user.name}`,
-      type: "message",
-      isRead: false,
-      createdAt: new Date()
     })
 
     setNewMessage("")

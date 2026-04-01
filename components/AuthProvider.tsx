@@ -38,13 +38,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!isLoading) {
-      const isAuthPage = pathname?.startsWith('/auth')
-      const isDashboardPage = pathname?.startsWith('/dashboard')
-
-      if (!user && (isDashboardPage || pathname === '/')) {
-        router.replace("/auth")
-      } else if (user && isAuthPage) {
-        router.replace("/dashboard")
+      if (!user && pathname !== "/auth") {
+        router.push("/auth")
+      } else if (user && pathname === "/auth") {
+        router.push("/dashboard")
       }
     }
   }, [user, isLoading, pathname, router])

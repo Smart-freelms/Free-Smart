@@ -5,13 +5,13 @@ import { QuizCreator } from "@/components/QuizCreator"
 import { QuizTaker } from "@/components/QuizTaker"
 import { QuizResults } from "@/components/QuizResults"
 import { useState, useEffect, Suspense } from "react"
-import type { Quiz } from "@/types"
+import { Quiz } from "@/types"
 import { db } from "@/utils/database"
-import { useSearchParams } from "next/navigation"
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import { useRouter, useSearchParams } from "next/navigation"
 
 function QuizzesContent() {
   const { user } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [view, setView] = useState<"list" | "create" | "edit" | "take" | "results">("list")
@@ -49,9 +49,7 @@ function QuizzesContent() {
 
   const loadQuizzes = async () => {
     try {
-      const loadedQuizzes = user?.role === "teacher"
-        ? await db.getQuizzes(user.id, "teacher")
-        : await db.getQuizzes(undefined, "student")
+      const loadedQuizzes = user?.role === "teacher" ? await db.getQuizzes(user.id) : await db.getQuizzes()
       setQuizzes(loadedQuizzes)
     } catch (error) {
       console.error("Failed to load quizzes:", error)
@@ -73,49 +71,48 @@ function QuizzesContent() {
   }
 
   return (
-    <DashboardLayout title="Quizzes" subtitle="Test your knowledge and track progress">
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Available Quizzes</h1>
-        {user.role === "teacher" && (
-          <button
-            onClick={() => { setEditQuizId(null); setView("create"); }}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-sm"
-          >
-            Create New Quiz
-          </button>
-        )}
-      </div>
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">Quizzes</h1>
+      {user.role === "teacher" && (
+        <button
+          onClick={() => { setEditQuizId(null); setView("create"); }}
+          className="mb-4 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+        >
+          Create New Quiz
+        </button>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {quizzes.map((quiz) => (
-          <div key={quiz.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">{quiz.title}</h2>
-            <p className="text-gray-600 mb-4 line-clamp-2">{quiz.description}</p>
+          <div key={quiz.id} className="bg-white p-6 rounded-lg shadow border">
+            <h2 className="text-xl font-semibold mb-2">{quiz.title}</h2>
+            <p className="text-gray-600 mb-4">{quiz.description}</p>
             <div className="flex space-x-2">
               {user.role === "student" ? (
                 <button
                   onClick={() => { setSelectedQuiz(quiz); setView("take"); }}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   Take Quiz
                 </button>
               ) : (
                 <button
                   onClick={() => { setEditQuizId(quiz.id); setView("edit"); }}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
-                  Edit Quiz
+                  Edit
                 </button>
               )}
             </div>
           </div>
         ))}
-        {quizzes.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
-            <p className="text-gray-500">No quizzes available at the moment.</p>
-          </div>
-        )}
       </div>
-    </DashboardLayout>
+      <button
+        onClick={() => router.push("/dashboard")}
+        className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+      >
+        Back to Dashboard
+      </button>
+    </div>
   )
 }
 

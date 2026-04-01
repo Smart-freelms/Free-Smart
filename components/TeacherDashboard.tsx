@@ -16,7 +16,6 @@ import {
   Mail,
   Calendar,
   Bell,
-  Trash2,
 } from "lucide-react"
 import { db } from "../utils/database"
 import { StatCard, StatCardsGrid } from "./dashboard/StatCards"
@@ -251,7 +250,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           Edit
                         </button>
                         <button
-                          onClick={() => onViewChange("results", quiz)}
+                          onClick={() => onViewChange("results" as any, quiz)}
                           className="flex-1 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >
                           Results

@@ -189,7 +189,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, quizze
                 )}
                 {quizzes.length > 5 && (
                   <button
-                    onClick={() => onViewChange("quizzes")}
+                    onClick={() => onViewChange("quizzes" as any)}
                     className="w-full mt-6 py-2 text-center text-blue-600 font-medium hover:underline"
                   >
                     View all quizzes

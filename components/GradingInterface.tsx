@@ -81,17 +81,6 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
 
       await db.saveSubmission(updatedSubmission)
 
-      // Notify Student
-      await db.saveNotification({
-        id: Date.now().toString() + "-notif",
-        userId: selectedSubmission.studentId,
-        title: "Assignment Graded",
-        message: `Your submission for ${assignment.title} has been graded: ${grade}/${assignment.maxPoints}`,
-        type: "grade",
-        isRead: false,
-        createdAt: new Date()
-      })
-
       // Update local state
       setSubmissions(submissions.map((s) => (s.id === selectedSubmission.id ? updatedSubmission : s)))
       setSelectedSubmission(updatedSubmission)
@@ -114,7 +103,7 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
   const { userNames } = useUserNames()
 
   const getStudentName = (studentId: string) => {
-    return userNames[studentId] || `Student ${studentId.slice(0, 4)}`
+    return `Student ${studentId.slice(0, 4)}`
   }
 
   if (isLoading) {

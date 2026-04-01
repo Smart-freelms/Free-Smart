@@ -67,10 +67,7 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
 
       // Fetch actual students from database
       const allUsers = await db.getAllUsers()
-      const courseStudents = user.role === "teacher"
-        ? allUsers.filter(u => course.students.includes(u.id))
-        : allUsers.filter(u => u.id === user.id)
-
+      const courseStudents = allUsers.filter(u => course.students.includes(u.id))
       setStudents(courseStudents)
 
       // Fetch actual grades from database

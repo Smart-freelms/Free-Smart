@@ -5,11 +5,12 @@ import { CourseList } from "@/components/CourseList"
 import { CourseCreator } from "@/components/CourseCreator"
 import { MaterialViewer } from "@/components/MaterialViewer"
 import { useState } from "react"
-import type { Course } from "@/types"
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import { Course } from "@/types"
+import { useRouter } from "next/navigation"
 
 export default function CoursesPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [view, setView] = useState<"list" | "create" | "edit" | "materials">("list")
   const [editCourseId, setEditCourseId] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
@@ -21,11 +22,11 @@ export default function CoursesPage() {
   }
 
   if (view === "materials" && selectedCourse) {
-    return <MaterialViewer user={user} courseId={selectedCourse.id} onBack={() => setView("list")} />
+    return <MaterialViewer user={user} course={selectedCourse} onBack={() => setView("list")} />
   }
 
   return (
-    <DashboardLayout title="Manage Courses" subtitle="Create and manage your learning content">
+    <div className="p-8">
       <CourseList
         user={user}
         onCreateCourse={() => setView("create")}
@@ -38,6 +39,12 @@ export default function CoursesPage() {
           setView("materials")
         }}
       />
-    </DashboardLayout>
+      <button
+        onClick={() => router.push("/dashboard")}
+        className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+      >
+        Back to Dashboard
+      </button>
+    </div>
   )
 }

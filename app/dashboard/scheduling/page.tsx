@@ -2,16 +2,13 @@
 
 import { useAuth } from "@/components/AuthProvider"
 import { SchedulingSystem } from "@/components/SchedulingSystem"
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import { useRouter } from "next/navigation"
 
 export default function SchedulingPage() {
   const { user } = useAuth()
+  const router = useRouter()
 
   if (!user) return null
 
-  return (
-    <DashboardLayout title="Scheduling" subtitle="Manage upcoming events and deadlines">
-      <SchedulingSystem user={user} onBack={() => {}} />
-    </DashboardLayout>
-  )
+  return <SchedulingSystem user={user} onBack={() => router.push('/dashboard')} />
 }

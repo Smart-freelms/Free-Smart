@@ -115,18 +115,6 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
       }
 
       await db.saveSubmission(submission)
-
-      // Notify Teacher
-      await db.saveNotification({
-        id: Date.now().toString() + "-notif",
-        userId: assignment.createdBy,
-        title: "New Assignment Submission",
-        message: `${user.name} submitted ${assignment.title}`,
-        type: "assignment",
-        isRead: false,
-        createdAt: new Date()
-      })
-
       setSuccess("Assignment submitted successfully!")
       setExistingSubmission(submission)
     } catch (error) {

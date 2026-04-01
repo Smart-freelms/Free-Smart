@@ -37,28 +37,53 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
     }
   }
 
-  const handleCreatePost = async (title: string, content: string) => {
+  const handleCreatePost = async () => {
+    if (!newPost.title.trim() || !newPost.content.trim()) return
+
     await db.createDiscussionPost({
       courseId: course.id,
       authorId: user.id,
-      title,
-      content,
+      title: newPost.title,
+      content: newPost.content,
+      replies: []
     })
 
     loadPosts()
+    setNewPost({ title: "", content: "" })
     setShowNewPostForm(false)
   }
 
-  const handleReply = async (postId: string, content: string) => {
-    await db.createDiscussionPost({
-      courseId: course.id,
-      authorId: user.id,
-      title: "",
-      content,
-      parentId: postId,
-    })
+  const handleReply = async (postId: string) => {
+    if (!newReply.trim()) return
 
+    const postToUpdate = posts.find(p => p.id === postId)
+    if (!postToUpdate) return
+
+    const updatedPost = {
+      ...postToUpdate,
+      replies: [
+        ...postToUpdate.replies,
+        {
+          id: Date.now().toString(),
+          postId,
+          authorId: user.id,
+          content: newReply,
+          createdAt: new Date()
+        }
+      ],
+      updatedAt: new Date()
+    }
+
+    await db.createDiscussionPost(updatedPost)
     loadPosts()
+    if (selectedPost?.id === postId) {
+      setSelectedPost(updatedPost)
+    }
+    setNewReply("")
+  }
+
+  const getUserName = (userId: string) => {
+    return `User ${userId.slice(0, 4)}`
   }
 
   const getReplies = (postId: string) => {

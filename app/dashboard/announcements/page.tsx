@@ -2,16 +2,13 @@
 
 import { useAuth } from "@/components/AuthProvider"
 import { AnnouncementSystem } from "@/components/AnnouncementSystem"
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import { useRouter } from "next/navigation"
 
 export default function AnnouncementsPage() {
   const { user } = useAuth()
+  const router = useRouter()
 
   if (!user) return null
 
-  return (
-    <DashboardLayout title="Announcements" subtitle="Stay updated with the latest news">
-      <AnnouncementSystem user={user} onBack={() => {}} />
-    </DashboardLayout>
-  )
+  return <AnnouncementSystem user={user} onBack={() => router.push('/dashboard')} />
 }

@@ -21,9 +21,7 @@ export default function DashboardPage() {
 
   const loadQuizzes = async () => {
     try {
-      const loadedQuizzes = user?.role === "teacher"
-        ? await db.getQuizzes(user.id, "teacher")
-        : await db.getQuizzes(undefined, "student")
+      const loadedQuizzes = user?.role === "teacher" ? await db.getQuizzes(user.id) : await db.getQuizzes()
       setQuizzes(loadedQuizzes)
     } catch (error) {
       console.error("Failed to load quizzes:", error)
@@ -35,59 +33,41 @@ export default function DashboardPage() {
   }
 
   const handleViewChange = (view: string, quiz?: Quiz) => {
-    switch (view) {
-      case "take-quiz":
-        if (quiz) router.push(`/dashboard/quizzes?view=take&id=${quiz.id}`)
-        break
-      case "results":
-        if (quiz) router.push(`/dashboard/quizzes?view=results&id=${quiz.id}`)
-        break
-      case "courses":
-        router.push("/dashboard/courses")
-        break
-      case "assignments":
-        router.push("/dashboard/assignments")
-        break
-      case "analytics":
-        router.push("/dashboard/analytics")
-        break
-      case "gradebook":
-        router.push("/dashboard/gradebook")
-        break
-      case "messages":
-        router.push("/dashboard/messages")
-        break
-      case "announcements":
-        router.push("/dashboard/announcements")
-        break
-      case "scheduling":
-        router.push("/dashboard/scheduling")
-        break
-      case "notifications":
-        router.push("/dashboard/notifications")
-        break
-      case "create-quiz":
-        router.push("/dashboard/quizzes?view=create")
-        break
-      case "edit-quiz":
-        if (quiz) router.push(`/dashboard/quizzes?view=edit&id=${quiz.id}`)
-        break
-      case "quizzes":
-        router.push("/dashboard/quizzes")
-        break
-      default:
-        console.warn(`Unknown view: ${view}`)
+    if (view === 'take-quiz' && quiz) {
+      router.push(`/dashboard/quizzes?view=take&id=${quiz.id}`)
+    } else if (view === 'results' && quiz) {
+      router.push(`/dashboard/quizzes?view=results&id=${quiz.id}`)
+    } else if (view === 'courses') {
+      router.push('/dashboard/courses')
+    } else if (view === 'assignments') {
+      router.push('/dashboard/assignments')
+    } else if (view === 'analytics') {
+      router.push('/dashboard/analytics')
+    } else if (view === 'gradebook') {
+      router.push('/dashboard/gradebook')
+    } else if (view === 'messages') {
+      router.push('/dashboard/messages')
+    } else if (view === 'announcements') {
+      router.push('/dashboard/announcements')
+    } else if (view === 'scheduling') {
+      router.push('/dashboard/scheduling')
+    } else if (view === 'notifications') {
+      router.push('/dashboard/notifications')
+    } else if (view === 'create-quiz') {
+      router.push('/dashboard/quizzes?view=create')
+    } else if (view === 'edit-quiz' && quiz) {
+      router.push(`/dashboard/quizzes?view=edit&id=${quiz.id}`)
     }
   }
 
   return user.role === "student" ? (
-    <StudentDashboard user={user} quizzes={quizzes} onLogout={logout} onViewChange={handleViewChange} />
+    <StudentDashboard user={user} quizzes={quizzes} onLogout={logout} onViewChange={handleViewChange as any} />
   ) : (
     <TeacherDashboard
       user={user}
       quizzes={quizzes}
       onLogout={logout}
-      onViewChange={handleViewChange}
+      onViewChange={handleViewChange as any}
       onQuizzesUpdate={loadQuizzes}
     />
   )

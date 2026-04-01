@@ -2,16 +2,13 @@
 
 import { useAuth } from "@/components/AuthProvider"
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard"
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import { useRouter } from "next/navigation"
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
+  const router = useRouter()
 
   if (!user) return null
 
-  return (
-    <DashboardLayout title="Analytics" subtitle="Track progress and performance metrics">
-      <AnalyticsDashboard user={user} onBack={() => {}} />
-    </DashboardLayout>
-  )
+  return <AnalyticsDashboard user={user} onBack={() => router.push('/dashboard')} />
 }

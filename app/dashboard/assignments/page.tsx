@@ -6,11 +6,12 @@ import { AssignmentCreator } from "@/components/AssignmentCreator"
 import { AssignmentSubmission } from "@/components/AssignmentSubmission"
 import { GradingInterface } from "@/components/GradingInterface"
 import { useState } from "react"
-import type { Assignment } from "@/types"
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout"
+import { Assignment } from "@/types"
+import { useRouter } from "next/navigation"
 
 export default function AssignmentsPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [view, setView] = useState<"list" | "create" | "edit" | "submit" | "grade">("list")
   const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null)
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
@@ -31,7 +32,7 @@ export default function AssignmentsPage() {
   }
 
   return (
-    <DashboardLayout title="Assignments" subtitle="Manage and submit coursework">
+    <div className="p-8">
       <AssignmentList
         user={user}
         onCreateAssignment={(courseId) => {
@@ -47,6 +48,12 @@ export default function AssignmentsPage() {
           setView(user.role === "student" ? "submit" : "grade")
         }}
       />
-    </DashboardLayout>
+      <button
+        onClick={() => router.push("/dashboard")}
+        className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+      >
+        Back to Dashboard
+      </button>
+    </div>
   )
 }
