@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "../types"
-import { getCurrentUser, logout as authLogout } from "../utils/auth"
+import { getCurrentUser, logout as authLogout, refreshSession } from "../utils/auth"
 import { db } from "../utils/database"
+import { supabase } from "../utils/supabase"
 import { useRouter, usePathname } from "next/navigation"
 
 interface AuthContextType {
@@ -25,8 +26,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const init = async () => {
       try {
         await db.init()
-        const currentUser = getCurrentUser()
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            const freshUser = await refreshSession()
+            setUser(freshUser)
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null)
+          }
+        })
+
+        const currentUser = await refreshSession() || getCurrentUser()
         setUser(currentUser)
+
+        return () => {
+          subscription.unsubscribe()
+        }
       } catch (error) {
         console.error("Auth init error:", error)
       } finally {

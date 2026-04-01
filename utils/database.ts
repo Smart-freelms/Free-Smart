@@ -1,3 +1,4 @@
+import { supabase } from "./supabase"
 import type {
   Quiz,
   User,
@@ -133,6 +134,13 @@ class QuizDatabase {
     const transaction = this.db!.transaction(["users"], "readwrite")
     const store = transaction.objectStore("users")
     await store.put(user)
+
+    // Sync to Supabase with offline support
+    try {
+      await supabase.from('users').upsert([user])
+    } catch (e) {
+      console.warn("Failed to sync user to Supabase, will retry when online", e)
+    }
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
@@ -171,12 +179,16 @@ class QuizDatabase {
     const transaction = this.db!.transaction(["quizzes"], "readwrite")
     const store = transaction.objectStore("quizzes")
     await store.put(quiz)
+
+    // Sync to Supabase with offline support
+    try {
+      await supabase.from('quizzes').upsert([quiz])
+    } catch (e) {
+      console.warn("Failed to sync quiz to Supabase, will retry when online", e)
+    }
   }
 
   async getQuizzes(createdBy?: string, userRole: "student" | "teacher" = "teacher"): Promise<Quiz[]> {
-    const transaction = this.db!.transaction(["quizzes"], "readonly")
-    const store = transaction.objectStore("quizzes")
-
     const filterQuizzes = (quizzes: Quiz[]) => {
       if (userRole === "teacher") return quizzes
       const now = new Date()
@@ -187,6 +199,18 @@ class QuizDatabase {
         return true
       })
     }
+
+    try {
+      let query = supabase.from('quizzes').select('*')
+      if (createdBy) query = query.eq('createdBy', createdBy)
+      const { data, error } = await query
+      if (!error && data) return filterQuizzes(data as Quiz[])
+    } catch (e) {
+      console.warn("Supabase fetch failed, falling back to IndexedDB", e)
+    }
+
+    const transaction = this.db!.transaction(["quizzes"], "readonly")
+    const store = transaction.objectStore("quizzes")
 
     if (createdBy) {
       const index = store.index("createdBy")
@@ -223,6 +247,13 @@ class QuizDatabase {
     const transaction = this.db!.transaction(["attempts"], "readwrite")
     const store = transaction.objectStore("attempts")
     await store.put(attempt)
+
+    // Sync to Supabase with offline support
+    try {
+      await supabase.from('attempts').upsert([attempt])
+    } catch (e) {
+      console.warn("Failed to sync attempt to Supabase, will retry when online", e)
+    }
   }
 
   async getAttempts(userId: string): Promise<QuizAttempt[]> {
@@ -266,9 +297,28 @@ class QuizDatabase {
     const transaction = this.db!.transaction(["courses"], "readwrite")
     const store = transaction.objectStore("courses")
     await store.put(course)
+
+    // Sync to Supabase with offline support
+    try {
+      await supabase.from('courses').upsert([course])
+    } catch (e) {
+      console.warn("Failed to sync course to Supabase, will retry when online", e)
+    }
   }
 
   async getCourses(createdBy?: string): Promise<Course[]> {
+    try {
+      let query = supabase.from('courses').select('*')
+      if (createdBy) query = query.eq('createdBy', createdBy)
+      const { data, error } = await query
+      if (!error && data) {
+        if (createdBy) return data as Course[]
+        return (data as Course[]).filter((course) => course.isPublished)
+      }
+    } catch (e) {
+      console.warn("Supabase fetch failed, falling back to IndexedDB", e)
+    }
+
     const transaction = this.db!.transaction(["courses"], "readonly")
     const store = transaction.objectStore("courses")
 
@@ -340,12 +390,16 @@ class QuizDatabase {
     const transaction = this.db!.transaction(["assignments"], "readwrite")
     const store = transaction.objectStore("assignments")
     await store.put(assignment)
+
+    // Sync to Supabase with offline support
+    try {
+      await supabase.from('assignments').upsert([assignment])
+    } catch (e) {
+      console.warn("Failed to sync assignment to Supabase, will retry when online", e)
+    }
   }
 
   async getAssignments(courseId?: string, userRole: "student" | "teacher" = "teacher"): Promise<Assignment[]> {
-    const transaction = this.db!.transaction(["assignments"], "readonly")
-    const store = transaction.objectStore("assignments")
-
     const filterAssignments = (assignments: Assignment[]) => {
       if (userRole === "teacher") return assignments
       const now = new Date()
@@ -355,6 +409,18 @@ class QuizDatabase {
         return true
       })
     }
+
+    try {
+      let query = supabase.from('assignments').select('*')
+      if (courseId) query = query.eq('courseId', courseId)
+      const { data, error } = await query
+      if (!error && data) return filterAssignments(data as Assignment[])
+    } catch (e) {
+      console.warn("Supabase fetch failed, falling back to IndexedDB", e)
+    }
+
+    const transaction = this.db!.transaction(["assignments"], "readonly")
+    const store = transaction.objectStore("assignments")
 
     if (courseId) {
       const index = store.index("courseId")

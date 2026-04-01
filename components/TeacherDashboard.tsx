@@ -16,6 +16,7 @@ import {
   Mail,
   Calendar,
   Bell,
+  Trash2,
 } from "lucide-react"
 import { db } from "../utils/database"
 import { StatCard, StatCardsGrid } from "./dashboard/StatCards"

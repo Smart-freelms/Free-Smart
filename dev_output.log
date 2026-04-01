@@ -6,17 +6,10 @@
   - Local:        http://localhost:3000
 
  ✓ Starting...
- ✓ Ready in 1937ms
- ○ Compiling / ...
- ✓ Compiled / in 6s (496 modules)
- GET / 200 in 6386ms
+ ✓ Ready in 1978ms
  ○ Compiling /auth ...
- ✓ Compiled /auth in 2.8s (504 modules)
- ✓ Compiled /dashboard in 495ms (546 modules)
- ✓ Compiled /dashboard/courses in 456ms (592 modules)
- ✓ Compiled in 368ms (308 modules)
- ✓ Compiled in 167ms (308 modules)
- ✓ Compiled in 158ms (308 modules)
- ✓ Compiled in 141ms (308 modules)
- ✓ Compiled in 126ms (308 modules)
- ✓ Compiled in 160ms (308 modules)
+ ✓ Compiled /auth in 8.2s (614 modules)
+ GET /auth 200 in 9174ms
+ ✓ Compiled in 1013ms (306 modules)
+ GET /auth 200 in 85ms
+ ✓ Compiled in 1349ms (582 modules)
