@@ -4,12 +4,15 @@ import type React from "react"
 import { useState } from "react"
 import { BookOpen, GraduationCap, Eye, EyeOff } from "lucide-react"
 import { signIn, signUp, verifyIdentityForReset, verifySecurityAnswer, completePasswordReset } from "../utils/auth"
+import type { User } from "../types"
+import { useToast } from "./ToastProvider"
 
 interface AuthFormProps {
-  onLogin: (user: any) => void
+  onLogin: (user: User) => void
 }
 
 export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
+  const { addToast } = useToast()
   const [selectedRole, setSelectedRole] = useState<"student" | "teacher" | null>(null)
   const [authMode, setAuthMode] = useState<"signin" | "signup" | "forgot">("signin")
   const [formData, setFormData] = useState({
@@ -43,9 +46,11 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
     try {
       if (authMode === "signin") {
         const user = await signIn(formData.email, formData.password)
+        addToast("Welcome back!", "success")
         onLogin(user)
       } else if (authMode === "signup") {
         const user = await signUp(formData.email, formData.password, formData.name, selectedRole!)
+        addToast("Account created successfully!", "success")
         onLogin(user)
       } else if (authMode === "forgot") {
         if (resetStep === "identity") {
@@ -63,8 +68,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
           setMessage("Password reset successfully!")
         }
       }
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "An unknown error occurred")
     } finally {
       setIsLoading(false)
     }

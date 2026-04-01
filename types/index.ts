@@ -35,13 +35,15 @@ export interface Quiz {
   createdAt: Date
   updatedAt: Date
   isPublished: boolean
+  scheduledPublishDate?: string
+  scheduledExpiryDate?: string
 }
 
 export interface QuizAttempt {
   id: string
   quizId: string
   userId: string
-  answers: Record<string, any>
+  answers: Record<string, string | string[]>
   score: number
   totalPoints: number
   percentage: number
@@ -57,8 +59,8 @@ export interface QuizResult {
   detailedResults: {
     questionId: string
     question: string
-    userAnswer: any
-    correctAnswer: any
+    userAnswer: string | string[]
+    correctAnswer: string | string[]
     isCorrect: boolean
     points: number
     maxPoints: number
@@ -77,6 +79,8 @@ export interface Course {
   isPublished: boolean
   createdAt: Date
   updatedAt: Date
+  scheduledPublishDate?: string
+  scheduledExpiryDate?: string
 }
 
 export interface Assignment {
@@ -99,6 +103,12 @@ export interface AssignmentSubmission {
   studentId: string
   content: string
   fileUrl?: string
+  fileData?: {
+    name: string
+    size: number
+    type: string
+    content: ArrayBuffer | string
+  }
   submittedAt: Date
   grade?: number
   feedback?: string
@@ -123,6 +133,8 @@ export interface CourseMaterial {
   isSelected?: boolean // For bulk operations
   downloadCount?: number
   tags?: string[]
+  scheduledPublishDate?: string
+  scheduledExpiryDate?: string
 }
 
 export interface FileUploadProgress {
@@ -155,15 +167,70 @@ export interface DiscussionPost {
   authorId: string
   title: string
   content: string
-  replies: DiscussionReply[]
-  createdAt: Date
-  updatedAt: Date
+  parentId?: string
+  createdAt: string
+  updatedAt: string
 }
 
-export interface DiscussionReply {
+export interface ScheduledEvent {
   id: string
-  postId: string
-  authorId: string
+  title: string
+  description: string
+  type: "quiz" | "assignment" | "course" | "announcement"
+  entityId: string
+  scheduledDate: string
+  action: "publish" | "unpublish" | "due" | "reminder"
+  isCompleted: boolean
+  createdBy: string
+  createdAt: string
+}
+
+export interface NotificationSettings {
+  userId: string
+  emailNotifications: boolean
+  pushNotifications: boolean
+  assignmentReminders: boolean
+  gradeNotifications: boolean
+  messageNotifications: boolean
+  announcementNotifications: boolean
+}
+
+export interface Message {
+  id: string
+  senderId: string
+  receiverId: string
+  subject: string
   content: string
-  createdAt: Date
+  isRead: boolean
+  createdAt: string
+}
+
+export interface Announcement {
+  id: string
+  title: string
+  content: string
+  courseId?: string
+  createdBy: string
+  createdAt: string
+  isPublished: boolean
+  updatedAt?: string
+}
+
+export interface AuthLog {
+  id: string
+  userId: string
+  event: string
+  details?: Record<string, unknown>
+  timestamp: string
+  ip: string
+}
+
+export interface UserSession {
+  id: string
+  userId: string
+  token: string
+  createdAt: string
+  expiresAt: string
+  isActive: boolean
+  deviceInfo?: string
 }

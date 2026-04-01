@@ -3,7 +3,9 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import type { User, Assignment, AssignmentSubmission } from "../types"
-import { ArrowLeft, Save, FileText, Calendar, Clock, CheckCircle, UserIcon } from "lucide-react"
+import { ArrowLeft, Save, FileText, Calendar, Clock, CheckCircle, UserIcon, Download } from "lucide-react"
+import { useUserNames } from "../hooks/useUserNames"
+import { db } from "../utils/database"
 
 interface GradingInterfaceProps {
   user: User
@@ -97,6 +99,8 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
     }
     return { status: "pending", color: "text-yellow-600", bg: "bg-yellow-100", icon: Clock }
   }
+
+  const { userNames } = useUserNames()
 
   const getStudentName = (studentId: string) => {
     return `Student ${studentId.slice(0, 4)}`
@@ -209,17 +213,37 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
                     </div>
                   </div>
 
-                  {selectedSubmission.fileUrl && (
+                  {(selectedSubmission.fileUrl || selectedSubmission.fileData) && (
                     <div className="mt-4">
                       <h4 className="font-medium text-gray-900 mb-2">Attached File:</h4>
-                      <a
-                        href={selectedSubmission.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
-                      >
-                        View Attachment
-                      </a>
+                      {selectedSubmission.fileData ? (
+                        <button
+                          onClick={() => {
+                            const blob = new Blob([selectedSubmission.fileData!.content], { type: selectedSubmission.fileData!.type })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement("a")
+                            a.href = url
+                            a.download = selectedSubmission.fileData!.name
+                            document.body.appendChild(a)
+                            a.click()
+                            document.body.removeChild(a)
+                            URL.revokeObjectURL(url)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 underline flex items-center"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Download {selectedSubmission.fileData.name}
+                        </button>
+                      ) : (
+                        <a
+                          href={selectedSubmission.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          View Attachment
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>

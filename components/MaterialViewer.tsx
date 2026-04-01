@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { db } from '../utils/database'
 import { useState } from "react"
 import type { User, Course, CourseMaterial } from "../types"
 import {
@@ -18,15 +19,17 @@ import {
 
 interface MaterialViewerProps {
   user: User
-  course: Course
+  courseId: string
   onBack: () => void
 }
 
-export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, course, onBack }) => {
-  const [materials, setMaterials] = useState<CourseMaterial[]>(course.materials || [])
+export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, courseId, onBack }) => {
+  const [course, setCourse] = useState<Course | null>(null)
+  const [materials, setMaterials] = useState<CourseMaterial[]>([])
   const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set())
   const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
   const [filterType, setFilterType] = useState<CourseMaterial["type"] | "all">("all")
   const [sortBy, setSortBy] = useState<"title" | "date" | "type" | "downloads">("date")
 
@@ -61,6 +64,25 @@ export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, course, on
       newSelected.add(materialId)
     }
     setSelectedMaterials(newSelected)
+  }
+
+  useEffect(() => {
+    loadCourseData()
+  }, [courseId, user.role])
+
+  const loadCourseData = async () => {
+    setIsLoading(true)
+    try {
+      const data = await db.getCourseById(courseId, user.role)
+      if (data) {
+        setCourse(data)
+        setMaterials(data.materials || [])
+      }
+    } catch (error) {
+      console.error("Failed to load course materials:", error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const selectAllMaterials = () => {
@@ -111,6 +133,16 @@ export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, course, on
         return <FileText className="w-5 h-5" />
     }
   }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!course) return null
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
