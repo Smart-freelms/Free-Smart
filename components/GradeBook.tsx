@@ -61,30 +61,32 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
       setAssignments(courseAssignments)
       setQuizzes(courseQuizzes)
 
-      // Mock student data - in a real app, you'd fetch actual enrolled students
-      const mockStudents: User[] = course.students.map((studentId, index) => ({
-        id: studentId,
-        name: `Student ${index + 1}`,
-        email: `student${index + 1}@example.com`,
-        role: "student" as const,
-        password: "",
-        createdAt: new Date(),
-        isActive: true,
-      }))
-      setStudents(mockStudents)
+      // Fetch actual students from database
+      const allUsers = await db.getAllUsers()
+      const courseStudents = allUsers.filter(u => course.students.includes(u.id))
+      setStudents(courseStudents)
 
-      // Mock grades data - in a real app, you'd fetch actual grades
-      const mockGrades: Record<string, Record<string, number>> = {}
-      mockStudents.forEach((student) => {
-        mockGrades[student.id] = {}
-        courseAssignments.forEach((assignment) => {
-          mockGrades[student.id][`assignment-${assignment.id}`] = Math.floor(Math.random() * assignment.maxPoints)
-        })
-        courseQuizzes.forEach((quiz) => {
-          mockGrades[student.id][`quiz-${quiz.id}`] = Math.floor(Math.random() * 100)
-        })
-      })
-      setGrades(mockGrades)
+      // Fetch actual grades from database
+      const dbGrades: Record<string, Record<string, number>> = {}
+      for (const student of courseStudents) {
+        dbGrades[student.id] = {}
+
+        for (const assignment of courseAssignments) {
+          const submission = await db.getSubmissionByAssignmentAndStudent(assignment.id, student.id)
+          if (submission?.grade !== undefined) {
+            dbGrades[student.id][`assignment-${assignment.id}`] = submission.grade
+          }
+        }
+
+        for (const quiz of courseQuizzes) {
+          const attempts = await db.getQuizAttemptsByStudent(quiz.id, student.id)
+          if (attempts.length > 0) {
+            const bestScore = Math.max(...attempts.map(a => a.percentage))
+            dbGrades[student.id][`quiz-${quiz.id}`] = bestScore
+          }
+        }
+      }
+      setGrades(dbGrades)
     } catch (error) {
       console.error("Failed to load course data:", error)
     }

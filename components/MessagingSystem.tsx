@@ -49,36 +49,29 @@ export const MessagingSystem: React.FC<MessagingSystemProps> = ({ user, onBack }
 
   const loadConversations = async () => {
     try {
-      // Mock conversations - in a real app, you'd fetch from database
-      const mockConversations: Conversation[] = [
-        {
-          id: "1",
-          participants: [user.id, "teacher1"],
-          lastMessage: {
-            id: "m1",
-            senderId: "teacher1",
-            receiverId: user.id,
-            content: "Great work on your latest assignment!",
-            sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            isRead: false,
-          },
-          updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        },
-        {
-          id: "2",
-          participants: [user.id, "student1"],
-          lastMessage: {
-            id: "m2",
-            senderId: user.id,
-            receiverId: "student1",
-            content: "Thanks for sharing those study notes!",
-            sentAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            isRead: true,
-          },
-          updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        },
-      ]
-      setConversations(mockConversations)
+      const dbMessages = await db.getMessages(user.id)
+      const convMap = new Map<string, Conversation>()
+
+      dbMessages.forEach(msg => {
+        const otherId = msg.senderId === user.id ? msg.receiverId : msg.senderId
+        if (!convMap.has(otherId)) {
+          convMap.set(otherId, {
+            id: otherId,
+            participants: [user.id, otherId],
+            lastMessage: {
+              id: msg.id,
+              senderId: msg.senderId,
+              receiverId: msg.receiverId,
+              content: msg.content,
+              sentAt: new Date(msg.createdAt),
+              isRead: msg.isRead
+            },
+            updatedAt: new Date(msg.createdAt)
+          })
+        }
+      })
+
+      setConversations(Array.from(convMap.values()))
     } catch (error) {
       console.error("Failed to load conversations:", error)
     } finally {
@@ -88,37 +81,8 @@ export const MessagingSystem: React.FC<MessagingSystemProps> = ({ user, onBack }
 
   const loadAvailableUsers = async () => {
     try {
-      // Mock users - in a real app, you'd fetch from database
-      const mockUsers: User[] = [
-        {
-          id: "teacher1",
-          name: "Dr. Smith",
-          email: "dr.smith@university.edu",
-          role: "teacher",
-          password: "",
-          createdAt: new Date(),
-          isActive: true,
-        },
-        {
-          id: "student1",
-          name: "Alice Johnson",
-          email: "alice@student.edu",
-          role: "student",
-          password: "",
-          createdAt: new Date(),
-          isActive: true,
-        },
-        {
-          id: "student2",
-          name: "Bob Wilson",
-          email: "bob@student.edu",
-          role: "student",
-          password: "",
-          createdAt: new Date(),
-          isActive: true,
-        },
-      ]
-      setAvailableUsers(mockUsers.filter((u) => u.id !== user.id))
+      const users = await db.getAllUsers()
+      setAvailableUsers(users.filter((u) => u.id !== user.id))
     } catch (error) {
       console.error("Failed to load users:", error)
     }
@@ -126,34 +90,18 @@ export const MessagingSystem: React.FC<MessagingSystemProps> = ({ user, onBack }
 
   const loadMessages = async (conversationId: string) => {
     try {
-      // Mock messages - in a real app, you'd fetch from database
-      const mockMessages: Message[] = [
-        {
-          id: "m1",
-          senderId: "teacher1",
-          receiverId: user.id,
-          content: "Hi! I wanted to discuss your recent assignment submission.",
-          sentAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
-          isRead: true,
-        },
-        {
-          id: "m2",
-          senderId: user.id,
-          receiverId: "teacher1",
-          content: "Thank you for reaching out! I'd be happy to discuss it.",
-          sentAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-          isRead: true,
-        },
-        {
-          id: "m3",
-          senderId: "teacher1",
-          receiverId: user.id,
-          content: "Great work on your latest assignment!",
-          sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          isRead: false,
-        },
-      ]
-      setMessages(mockMessages)
+      const dbMessages = await db.getMessages(user.id)
+      const filtered = dbMessages
+        .filter(m => m.senderId === conversationId || m.receiverId === conversationId)
+        .map(m => ({
+          id: m.id,
+          senderId: m.senderId,
+          receiverId: m.receiverId,
+          content: m.content,
+          sentAt: new Date(m.createdAt),
+          isRead: m.isRead
+        }))
+      setMessages(filtered.reverse())
     } catch (error) {
       console.error("Failed to load messages:", error)
     }
@@ -162,26 +110,18 @@ export const MessagingSystem: React.FC<MessagingSystemProps> = ({ user, onBack }
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return
 
-    const message: Message = {
-      id: Date.now().toString(),
+    const receiverId = selectedConversation.participants.find((p) => p !== user.id)!
+
+    await db.sendMessage({
       senderId: user.id,
-      receiverId: selectedConversation.participants.find((p) => p !== user.id)!,
-      content: newMessage,
-      sentAt: new Date(),
-      isRead: false,
-    }
+      receiverId,
+      subject: "Direct Message",
+      content: newMessage
+    })
 
-    setMessages([...messages, message])
     setNewMessage("")
-
-    // Update conversation
-    const updatedConversation = {
-      ...selectedConversation,
-      lastMessage: message,
-      updatedAt: new Date(),
-    }
-    setConversations(conversations.map((c) => (c.id === selectedConversation.id ? updatedConversation : c)))
-    setSelectedConversation(updatedConversation)
+    loadMessages(selectedConversation.id)
+    loadConversations()
   }
 
   const startNewConversation = (userId: string) => {

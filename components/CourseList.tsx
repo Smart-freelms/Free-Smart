@@ -36,8 +36,7 @@ export const CourseList: React.FC<CourseListProps> = ({ user, onCreateCourse, on
   const handleDeleteCourse = async (courseId: string) => {
     if (confirm("Are you sure you want to delete this course? This action cannot be undone.")) {
       try {
-        // In a real app, you'd have a deleteCourse method
-        console.log("Delete course:", courseId)
+        await db.deleteCourse(courseId)
         loadCourses()
       } catch (error) {
         console.error("Failed to delete course:", error)

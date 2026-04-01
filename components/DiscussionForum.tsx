@@ -26,47 +26,8 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
 
   const loadPosts = async () => {
     try {
-      // Mock discussion posts - in a real app, you'd fetch from database
-      const mockPosts: DiscussionPost[] = [
-        {
-          id: "1",
-          courseId: course.id,
-          authorId: "teacher1",
-          title: "Welcome to the Course Discussion",
-          content: "Feel free to ask questions and share insights about the course material here.",
-          replies: [
-            {
-              id: "r1",
-              postId: "1",
-              authorId: "student1",
-              content: "Thank you for setting up this discussion space!",
-              createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            },
-          ],
-          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "2",
-          courseId: course.id,
-          authorId: "student2",
-          title: "Question about Assignment 1",
-          content: "I'm having trouble understanding the requirements for the first assignment. Could someone clarify?",
-          replies: [
-            {
-              id: "r2",
-              postId: "2",
-              authorId: "teacher1",
-              content:
-                "Great question! The assignment requires you to analyze the case study and provide recommendations.",
-              createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-            },
-          ],
-          createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
-          updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-        },
-      ]
-      setPosts(mockPosts)
+      const dbPosts = await db.getDiscussionPosts(course.id)
+      setPosts(dbPosts)
     } catch (error) {
       console.error("Failed to load posts:", error)
     } finally {
@@ -77,18 +38,15 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
   const handleCreatePost = async () => {
     if (!newPost.title.trim() || !newPost.content.trim()) return
 
-    const post: DiscussionPost = {
-      id: Date.now().toString(),
+    await db.createDiscussionPost({
       courseId: course.id,
       authorId: user.id,
       title: newPost.title,
       content: newPost.content,
-      replies: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
+      replies: []
+    })
 
-    setPosts([post, ...posts])
+    loadPosts()
     setNewPost({ title: "", content: "" })
     setShowNewPostForm(false)
   }
@@ -96,36 +54,34 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
   const handleReply = async (postId: string) => {
     if (!newReply.trim()) return
 
-    const reply: DiscussionReply = {
-      id: Date.now().toString(),
-      postId,
-      authorId: user.id,
-      content: newReply,
-      createdAt: new Date(),
+    const postToUpdate = posts.find(p => p.id === postId)
+    if (!postToUpdate) return
+
+    const updatedPost = {
+      ...postToUpdate,
+      replies: [
+        ...postToUpdate.replies,
+        {
+          id: Date.now().toString(),
+          postId,
+          authorId: user.id,
+          content: newReply,
+          createdAt: new Date()
+        }
+      ],
+      updatedAt: new Date()
     }
 
-    setPosts(
-      posts.map((post) =>
-        post.id === postId ? { ...post, replies: [...post.replies, reply], updatedAt: new Date() } : post,
-      ),
-    )
-
+    await db.createDiscussionPost(updatedPost)
+    loadPosts()
     if (selectedPost?.id === postId) {
-      setSelectedPost({ ...selectedPost, replies: [...selectedPost.replies, reply] })
+      setSelectedPost(updatedPost)
     }
-
     setNewReply("")
   }
 
   const getUserName = (userId: string) => {
-    // In a real app, you'd fetch user names from database
-    const names = {
-      teacher1: "Dr. Smith",
-      student1: "Alice Johnson",
-      student2: "Bob Wilson",
-      [user.id]: user.name,
-    }
-    return names[userId as keyof typeof names] || `User ${userId}`
+    return `User ${userId.slice(0, 4)}`
   }
 
   const getUserRole = (userId: string) => {

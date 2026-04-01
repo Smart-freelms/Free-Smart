@@ -283,6 +283,20 @@ class QuizDatabase {
     })
   }
 
+  async getQuizAttemptsByStudent(quizId: string, studentId: string): Promise<QuizAttempt[]> {
+    const transaction = this.db!.transaction(["attempts"], "readonly")
+    const store = transaction.objectStore("attempts")
+    const index = store.index("userId")
+    const request = index.getAll(studentId)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => {
+        const attempts = request.result as QuizAttempt[]
+        resolve(attempts.filter((a) => a.quizId === quizId))
+      }
+    })
+  }
+
   async getQuizAttempts(quizId: string): Promise<QuizAttempt[]> {
     const transaction = this.db!.transaction(["attempts"], "readonly")
     const store = transaction.objectStore("attempts")
@@ -329,6 +343,22 @@ class QuizDatabase {
     })
   }
 
+  async getAllCourses(): Promise<Course[]> {
+    const transaction = this.db!.transaction(["courses"], "readonly")
+    const store = transaction.objectStore("courses")
+    const request = store.getAll()
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+    })
+  }
+
+  async deleteCourse(id: string): Promise<void> {
+    const transaction = this.db!.transaction(["courses"], "readwrite")
+    const store = transaction.objectStore("courses")
+    await store.delete(id)
+  }
+
   // Assignment methods
   async saveAssignment(assignment: Assignment): Promise<void> {
     const transaction = this.db!.transaction(["assignments"], "readwrite")
@@ -351,6 +381,55 @@ class QuizDatabase {
     const request = store.getAll()
     return new Promise((resolve) => {
       request.onsuccess = () => resolve(request.result)
+    })
+  }
+
+  async getAssignmentById(id: string): Promise<Assignment | null> {
+    const transaction = this.db!.transaction(["assignments"], "readonly")
+    const store = transaction.objectStore("assignments")
+    const request = store.get(id)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result || null)
+    })
+  }
+
+  async deleteAssignment(id: string): Promise<void> {
+    const transaction = this.db!.transaction(["assignments"], "readwrite")
+    const store = transaction.objectStore("assignments")
+    await store.delete(id)
+  }
+
+  // Submission methods
+  async saveSubmission(submission: any): Promise<void> {
+    const transaction = this.db!.transaction(["submissions"], "readwrite")
+    const store = transaction.objectStore("submissions")
+    await store.put(submission)
+  }
+
+  async getSubmissionsByAssignment(assignmentId: string): Promise<any[]> {
+    const transaction = this.db!.transaction(["submissions"], "readonly")
+    const store = transaction.objectStore("submissions")
+    const index = store.index("assignmentId")
+    const request = index.getAll(assignmentId)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+    })
+  }
+
+  async getSubmissionByAssignmentAndStudent(assignmentId: string, studentId: string): Promise<any | null> {
+    const transaction = this.db!.transaction(["submissions"], "readonly")
+    const store = transaction.objectStore("submissions")
+    const index = store.index("studentId")
+    const request = index.getAll(studentId)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => {
+        const submissions = request.result as any[]
+        const submission = submissions.find((s) => s.assignmentId === assignmentId)
+        resolve(submission || null)
+      }
     })
   }
 
@@ -515,11 +594,11 @@ class QuizDatabase {
   }
 
   // Discussion post methods
-  async createDiscussionPost(postData: Omit<DiscussionPost, "id" | "createdAt" | "updatedAt">): Promise<void> {
-    const post: DiscussionPost = {
+  async createDiscussionPost(postData: any): Promise<void> {
+    const post = {
       ...postData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
+      id: postData.id || crypto.randomUUID(),
+      createdAt: postData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
@@ -528,7 +607,7 @@ class QuizDatabase {
     await store.put(post)
   }
 
-  async getDiscussionPosts(courseId: string): Promise<DiscussionPost[]> {
+  async getDiscussionPosts(courseId: string): Promise<any[]> {
     const transaction = this.db!.transaction(["discussions"], "readonly")
     const store = transaction.objectStore("discussions")
     const index = store.index("courseId")
