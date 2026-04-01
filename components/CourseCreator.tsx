@@ -7,21 +7,17 @@ import {
   ArrowLeft,
   Plus,
   X,
-  Upload,
-  Link,
-  FileText,
-  Video,
-  ImageIcon,
   Save,
   Eye,
   EyeOff,
   Download,
   Trash2,
-  FolderOpen,
   CheckSquare,
   Square,
 } from "lucide-react"
 import { db } from "../utils/database"
+import { MaterialForm } from "./courses/MaterialForm"
+import { MaterialList } from "./courses/MaterialList"
 
 interface CourseCreatorProps {
   user: User
@@ -440,203 +436,29 @@ export const CourseCreator: React.FC<CourseCreatorProps> = ({ user, editCourseId
             )}
 
             {showMaterialForm && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Material Title</label>
-                    <input
-                      type="text"
-                      value={newMaterial.title || ""}
-                      onChange={(e) => setNewMaterial({ ...newMaterial, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter material title"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Material Type</label>
-                    <select
-                      value={newMaterial.type || "document"}
-                      onChange={(e) =>
-                        setNewMaterial({ ...newMaterial, type: e.target.value as CourseMaterial["type"] })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="document">Document</option>
-                      <option value="video">Video</option>
-                      <option value="image">Image</option>
-                      <option value="link">Link</option>
-                      <option value="file">File Upload</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex items-center space-x-4 mb-3">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload File
-                    </button>
-                    <span className="text-sm text-gray-500">or</span>
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">URL</label>
-                      <input
-                        type="url"
-                        value={newMaterial.url || ""}
-                        onChange={(e) => setNewMaterial({ ...newMaterial, url: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="Enter material URL"
-                      />
-                    </div>
-                  </div>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    accept="*/*"
-                  />
-
-                  {uploadProgress.length > 0 && (
-                    <div className="space-y-2">
-                      {uploadProgress.map((progress) => (
-                        <div key={progress.id} className="bg-white p-3 rounded border">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">{progress.fileName}</span>
-                            <span className="text-xs text-gray-500">
-                              {progress.status === "completed" ? "Complete" : `${Math.round(progress.progress)}%`}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                progress.status === "error"
-                                  ? "bg-red-500"
-                                  : progress.status === "completed"
-                                    ? "bg-green-500"
-                                    : "bg-blue-500"
-                              }`}
-                              style={{ width: `${progress.progress}%` }}
-                            />
-                          </div>
-                          {progress.error && <p className="text-xs text-red-600 mt-1">{progress.error}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description (Optional)</label>
-                  <textarea
-                    value={newMaterial.description || ""}
-                    onChange={(e) => setNewMaterial({ ...newMaterial, description: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="Brief description of the material"
-                  />
-                </div>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={addMaterial}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    Add Material
-                  </button>
-                  <button
-                    onClick={() => setShowMaterialForm(false)}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+              <MaterialForm
+                newMaterial={newMaterial}
+                uploadProgress={uploadProgress}
+                onUpload={handleFileUpload}
+                onChange={(updates) => setNewMaterial({ ...newMaterial, ...updates })}
+                onAdd={addMaterial}
+                onCancel={() => setShowMaterialForm(false)}
+              />
             )}
 
             {courseData.materials && courseData.materials.length > 0 ? (
-              <div className="space-y-3">
-                {courseData.materials.map((material) => (
-                  <div
-                    key={material.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
-                      bulkSelectMode && selectedMaterials.has(material.id)
-                        ? "bg-blue-50 border-blue-300"
-                        : "bg-gray-50 border-gray-200"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      {bulkSelectMode && (
-                        <button
-                          onClick={() => toggleMaterialSelection(material.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          {selectedMaterials.has(material.id) ? (
-                            <CheckSquare className="w-4 h-4" />
-                          ) : (
-                            <Square className="w-4 h-4" />
-                          )}
-                        </button>
-                      )}
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                        {getMaterialIcon(material.type)}
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">{material.title}</h4>
-                        <div className="flex items-center space-x-2 text-sm text-gray-600">
-                          <span>{material.description || material.fileData?.name || material.url}</span>
-                          {material.downloadCount !== undefined && material.downloadCount > 0 && (
-                            <span className="bg-gray-200 px-2 py-1 rounded text-xs">
-                              {material.downloadCount} downloads
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {!bulkSelectMode && (
-                        <>
-                          {(material.fileData || material.url) && (
-                            <button
-                              onClick={() => {
-                                if (material.fileData) {
-                                  const blob = new Blob([material.fileData.content], { type: material.fileData.type })
-                                  const url = URL.createObjectURL(blob)
-                                  const a = document.createElement("a")
-                                  a.href = url
-                                  a.download = material.fileData.name
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  document.body.removeChild(a)
-                                  URL.revokeObjectURL(url)
-                                } else if (material.url) {
-                                  window.open(material.url, "_blank")
-                                }
-                              }}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => removeMaterial(material.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <MaterialList
+                materials={courseData.materials}
+                bulkSelectMode={bulkSelectMode}
+                selectedMaterials={selectedMaterials}
+                onToggleSelection={toggleMaterialSelection}
+                onRemove={removeMaterial}
+              />
             ) : (
               <div className="text-center py-8 text-gray-500">
-                <Upload className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                   <Plus className="w-6 h-6 text-gray-400" />
+                </div>
                 <p>No materials added yet. Click "Add Material" to get started.</p>
               </div>
             )}

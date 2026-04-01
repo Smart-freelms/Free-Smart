@@ -1,77 +1,19 @@
-import type { Quiz, User, QuizAttempt, Course, Assignment, Notification } from "../types"
-
-interface ScheduledEvent {
-  id: string
-  title: string
-  description: string
-  type: "quiz" | "assignment" | "course" | "announcement"
-  entityId: string
-  scheduledDate: string
-  action: "publish" | "unpublish" | "due" | "reminder"
-  isCompleted: boolean
-  createdBy: string
-  createdAt: string
-}
-
-interface NotificationSettings {
-  userId: string
-  emailNotifications: boolean
-  pushNotifications: boolean
-  assignmentReminders: boolean
-  gradeNotifications: boolean
-  messageNotifications: boolean
-  announcementNotifications: boolean
-}
-
-interface Message {
-  id: string
-  senderId: string
-  receiverId: string
-  subject: string
-  content: string
-  isRead: boolean
-  createdAt: string
-}
-
-interface Announcement {
-  id: string
-  title: string
-  content: string
-  courseId?: string
-  createdBy: string
-  createdAt: string
-  isPublished: boolean
-}
-
-interface DiscussionPost {
-  id: string
-  courseId: string
-  authorId: string
-  title: string
-  content: string
-  parentId?: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface AuthLog {
-  id: string
-  userId: string
-  event: string
-  details?: any
-  timestamp: Date
-  ip: string
-}
-
-interface UserSession {
-  id: string
-  userId: string
-  token: string
-  createdAt: Date
-  expiresAt: Date
-  isActive: boolean
-  deviceInfo?: string
-}
+import type {
+  Quiz,
+  User,
+  QuizAttempt,
+  Course,
+  Assignment,
+  Notification,
+  ScheduledEvent,
+  NotificationSettings,
+  Message,
+  Announcement,
+  DiscussionPost,
+  AuthLog,
+  UserSession,
+  AssignmentSubmission,
+} from "../types"
 
 class QuizDatabase {
   private dbName = "LMSAppDB" // Updated database name for LMS
@@ -231,21 +173,32 @@ class QuizDatabase {
     await store.put(quiz)
   }
 
-  async getQuizzes(createdBy?: string): Promise<Quiz[]> {
+  async getQuizzes(createdBy?: string, userRole: "student" | "teacher" = "teacher"): Promise<Quiz[]> {
     const transaction = this.db!.transaction(["quizzes"], "readonly")
     const store = transaction.objectStore("quizzes")
+
+    const filterQuizzes = (quizzes: Quiz[]) => {
+      if (userRole === "teacher") return quizzes
+      const now = new Date()
+      return quizzes.filter((quiz: Quiz) => {
+        if (!quiz.isPublished) return false
+        if (quiz.scheduledPublishDate && new Date(quiz.scheduledPublishDate) > now) return false
+        if (quiz.scheduledExpiryDate && new Date(quiz.scheduledExpiryDate) < now) return false
+        return true
+      })
+    }
 
     if (createdBy) {
       const index = store.index("createdBy")
       const request = index.getAll(createdBy)
       return new Promise((resolve) => {
-        request.onsuccess = () => resolve(request.result)
+        request.onsuccess = () => resolve(filterQuizzes(request.result))
       })
     }
 
     const request = store.getAll()
     return new Promise((resolve) => {
-      request.onsuccess = () => resolve(request.result.filter((quiz) => quiz.isPublished))
+      request.onsuccess = () => resolve(filterQuizzes(request.result))
     })
   }
 
@@ -280,6 +233,20 @@ class QuizDatabase {
 
     return new Promise((resolve) => {
       request.onsuccess = () => resolve(request.result)
+    })
+  }
+
+  async getQuizAttemptsByStudent(quizId: string, studentId: string): Promise<QuizAttempt[]> {
+    const transaction = this.db!.transaction(["attempts"], "readonly")
+    const store = transaction.objectStore("attempts")
+    const index = store.index("userId")
+    const request = index.getAll(studentId)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => {
+        const attempts = request.result as QuizAttempt[]
+        resolve(attempts.filter((a) => a.quizId === quizId))
+      }
     })
   }
 
@@ -319,14 +286,43 @@ class QuizDatabase {
     })
   }
 
-  async getCourseById(id: string): Promise<Course | null> {
+  async getCourseById(id: string, userRole: "student" | "teacher" = "teacher"): Promise<Course | null> {
     const transaction = this.db!.transaction(["courses"], "readonly")
     const store = transaction.objectStore("courses")
     const request = store.get(id)
 
     return new Promise((resolve) => {
-      request.onsuccess = () => resolve(request.result || null)
+      request.onsuccess = () => {
+        const course = request.result as Course | null
+        if (course && userRole === "student") {
+          const now = new Date()
+          const filteredMaterials = (course.materials || []).filter(m => {
+            if (m.scheduledPublishDate && new Date(m.scheduledPublishDate) > now) return false
+            if (m.scheduledExpiryDate && new Date(m.scheduledExpiryDate) < now) return false
+            return true
+          })
+          resolve({ ...course, materials: filteredMaterials })
+        } else {
+          resolve(course || null)
+        }
+      }
     })
+  }
+
+  async getAllCourses(): Promise<Course[]> {
+    const transaction = this.db!.transaction(["courses"], "readonly")
+    const store = transaction.objectStore("courses")
+    const request = store.getAll()
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result)
+    })
+  }
+
+  async deleteCourse(id: string): Promise<void> {
+    const transaction = this.db!.transaction(["courses"], "readwrite")
+    const store = transaction.objectStore("courses")
+    await store.delete(id)
   }
 
   // Assignment methods
@@ -336,21 +332,80 @@ class QuizDatabase {
     await store.put(assignment)
   }
 
-  async getAssignments(courseId?: string): Promise<Assignment[]> {
+  async getAssignments(courseId?: string, userRole: "student" | "teacher" = "teacher"): Promise<Assignment[]> {
     const transaction = this.db!.transaction(["assignments"], "readonly")
     const store = transaction.objectStore("assignments")
+
+    const filterAssignments = (assignments: Assignment[]) => {
+      if (userRole === "teacher") return assignments
+      const now = new Date()
+      return assignments.filter(a => {
+        if (a.scheduledPublishDate && new Date(a.scheduledPublishDate) > now) return false
+        if (a.scheduledExpiryDate && new Date(a.scheduledExpiryDate) < now) return false
+        return true
+      })
+    }
 
     if (courseId) {
       const index = store.index("courseId")
       const request = index.getAll(courseId)
       return new Promise((resolve) => {
-        request.onsuccess = () => resolve(request.result)
+        request.onsuccess = () => resolve(filterAssignments(request.result))
       })
     }
 
     const request = store.getAll()
     return new Promise((resolve) => {
+      request.onsuccess = () => resolve(filterAssignments(request.result))
+    })
+  }
+
+  async getAssignmentById(id: string): Promise<Assignment | null> {
+    const transaction = this.db!.transaction(["assignments"], "readonly")
+    const store = transaction.objectStore("assignments")
+    const request = store.get(id)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result || null)
+    })
+  }
+
+  async deleteAssignment(id: string): Promise<void> {
+    const transaction = this.db!.transaction(["assignments"], "readwrite")
+    const store = transaction.objectStore("assignments")
+    await store.delete(id)
+  }
+
+  // Submission methods
+  async saveSubmission(submission: AssignmentSubmission): Promise<void> {
+    const transaction = this.db!.transaction(["submissions"], "readwrite")
+    const store = transaction.objectStore("submissions")
+    await store.put(submission)
+  }
+
+  async getSubmissionsByAssignment(assignmentId: string): Promise<AssignmentSubmission[]> {
+    const transaction = this.db!.transaction(["submissions"], "readonly")
+    const store = transaction.objectStore("submissions")
+    const index = store.index("assignmentId")
+    const request = index.getAll(assignmentId)
+
+    return new Promise((resolve) => {
       request.onsuccess = () => resolve(request.result)
+    })
+  }
+
+  async getSubmissionByAssignmentAndStudent(assignmentId: string, studentId: string): Promise<AssignmentSubmission | null> {
+    const transaction = this.db!.transaction(["submissions"], "readonly")
+    const store = transaction.objectStore("submissions")
+    const index = store.index("studentId")
+    const request = index.getAll(studentId)
+
+    return new Promise((resolve) => {
+      request.onsuccess = () => {
+        const submissions = request.result as AssignmentSubmission[]
+        const submission = submissions.find((s) => s.assignmentId === assignmentId)
+        resolve(submission || null)
+      }
     })
   }
 
@@ -496,22 +551,54 @@ class QuizDatabase {
     await store.put(announcement)
   }
 
-  async getAnnouncements(courseId?: string): Promise<Announcement[]> {
+  async getAnnouncements(courseId?: string, userRole: "student" | "teacher" = "teacher"): Promise<Announcement[]> {
     const transaction = this.db!.transaction(["announcements"], "readonly")
     const store = transaction.objectStore("announcements")
+
+    const filterAnnouncements = (announcements: Announcement[]) => {
+      if (userRole === "teacher") return announcements
+      return announcements.filter(a => a.isPublished)
+    }
 
     if (courseId) {
       const index = store.index("courseId")
       const request = index.getAll(courseId)
       return new Promise((resolve) => {
-        request.onsuccess = () => resolve(request.result.filter((a) => a.isPublished))
+        request.onsuccess = () => resolve(filterAnnouncements(request.result))
       })
     }
 
     const request = store.getAll()
     return new Promise((resolve) => {
-      request.onsuccess = () => resolve(request.result.filter((a) => a.isPublished))
+      request.onsuccess = () => resolve(filterAnnouncements(request.result))
     })
+  }
+
+  async updateAnnouncement(announcementId: string, updates: Partial<Announcement>): Promise<void> {
+    const transaction = this.db!.transaction(["announcements"], "readwrite")
+    const store = transaction.objectStore("announcements")
+    const getRequest = store.get(announcementId)
+
+    return new Promise((resolve, reject) => {
+      getRequest.onsuccess = () => {
+        const announcement = getRequest.result
+        if (announcement) {
+          const updatedAnnouncement = { ...announcement, ...updates, updatedAt: new Date().toISOString() }
+          const putRequest = store.put(updatedAnnouncement)
+          putRequest.onsuccess = () => resolve()
+          putRequest.onerror = () => reject(putRequest.error)
+        } else {
+          reject(new Error("Announcement not found"))
+        }
+      }
+      getRequest.onerror = () => reject(getRequest.error)
+    })
+  }
+
+  async deleteAnnouncement(announcementId: string): Promise<void> {
+    const transaction = this.db!.transaction(["announcements"], "readwrite")
+    const store = transaction.objectStore("announcements")
+    await store.delete(announcementId)
   }
 
   // Discussion post methods

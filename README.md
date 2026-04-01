@@ -1,30 +1,52 @@
-# src
+# Smart LMS
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+A feature-rich, production-ready Learning Management System (LMS) built with Next.js, Tailwind CSS, and IndexedDB for local data storage.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/okwamaduahnoah-2951s-projects/v0-src)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/85GwvHp80Hs)
+## Features
 
-## Overview
+- **Course Management**: Create and manage courses with diverse materials (documents, videos, links).
+- **Interactive Quizzes**: Comprehensive quiz creator and taker with multiple question types.
+- **Assignment System**: Streamlined assignment creation, submission, and grading workflow.
+- **Student & Teacher Dashboards**: Role-specific dashboards with real-time analytics and activity tracking.
+- **Communication Hub**: Built-in messaging system, discussion forums, and announcement system.
+- **Gradebook**: Centralized grade management and performance tracking.
+- **Analytics**: Data-driven insights into student engagement and course performance.
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## Tech Stack
 
-## Deployment
+- **Framework**: [Next.js](https://nextjs.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Components**: [Radix UI](https://www.radix-ui.com/)
+- **Database**: IndexedDB (Local Storage)
+- **State Management**: React Hooks & Context API
 
-Your project is live at:
+## Getting Started
 
-**[https://vercel.com/okwamaduahnoah-2951s-projects/v0-src](https://vercel.com/okwamaduahnoah-2951s-projects/v0-src)**
+First, install the dependencies:
 
-## Build your app
+```bash
+npm install
+# or
+pnpm install
+```
 
-Continue building your app on:
+Then, run the development server:
 
-**[https://v0.app/chat/projects/85GwvHp80Hs](https://v0.app/chat/projects/85GwvHp80Hs)**
+```bash
+npm run dev
+# or
+pnpm dev
+```
 
-## How It Works
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+## Production Deployment
+
+To build the application for production:
+
+```bash
+npm run build
+```
+
+The app is ready to be deployed on platforms like Vercel or any other Next.js compatible hosting service.

@@ -3,7 +3,9 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import type { User, Assignment, AssignmentSubmission } from "../types"
-import { ArrowLeft, Save, FileText, Calendar, Clock, CheckCircle, UserIcon } from "lucide-react"
+import { ArrowLeft, Save, FileText, Calendar, Clock, CheckCircle, UserIcon, Download } from "lucide-react"
+import { useUserNames } from "../hooks/useUserNames"
+import { db } from "../utils/database"
 
 interface GradingInterfaceProps {
   user: User
@@ -29,42 +31,13 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
 
   const loadSubmissions = async () => {
     try {
-      // In a real app, you'd have a getSubmissionsByAssignment method
-      const mockSubmissions: AssignmentSubmission[] = [
-        {
-          id: "1",
-          assignmentId: assignment.id,
-          studentId: "student1",
-          content:
-            "This is my submission for the assignment. I have completed all the required tasks and included detailed explanations for each section.",
-          submittedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-          grade: 85,
-          feedback: "Good work overall, but could use more detail in section 2.",
-          gradedBy: user.id,
-          gradedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "2",
-          assignmentId: assignment.id,
-          studentId: "student2",
-          content:
-            "Here is my completed assignment. I researched the topic thoroughly and provided comprehensive answers to all questions.",
-          submittedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        },
-        {
-          id: "3",
-          assignmentId: assignment.id,
-          studentId: "student3",
-          content: "My assignment submission with detailed analysis and supporting evidence.",
-          submittedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-        },
-      ]
-      setSubmissions(mockSubmissions)
-      if (mockSubmissions.length > 0) {
-        setSelectedSubmission(mockSubmissions[0])
+      const dbSubmissions = await db.getSubmissionsByAssignment(assignment.id)
+      setSubmissions(dbSubmissions)
+      if (dbSubmissions.length > 0) {
+        setSelectedSubmission(dbSubmissions[0])
         setGradeData({
-          grade: mockSubmissions[0].grade?.toString() || "",
-          feedback: mockSubmissions[0].feedback || "",
+          grade: dbSubmissions[0].grade?.toString() || "",
+          feedback: dbSubmissions[0].feedback || "",
         })
       }
     } catch (error) {
@@ -106,8 +79,18 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
         gradedAt: new Date(),
       }
 
-      // In a real app, you'd save this to the database
-      console.log("Saving grade:", updatedSubmission)
+      await db.saveSubmission(updatedSubmission)
+
+      // Notify Student
+      await db.saveNotification({
+        id: Date.now().toString() + "-notif",
+        userId: selectedSubmission.studentId,
+        title: "Assignment Graded",
+        message: `Your submission for ${assignment.title} has been graded: ${grade}/${assignment.maxPoints}`,
+        type: "grade",
+        isRead: false,
+        createdAt: new Date()
+      })
 
       // Update local state
       setSubmissions(submissions.map((s) => (s.id === selectedSubmission.id ? updatedSubmission : s)))
@@ -128,14 +111,10 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
     return { status: "pending", color: "text-yellow-600", bg: "bg-yellow-100", icon: Clock }
   }
 
+  const { userNames } = useUserNames()
+
   const getStudentName = (studentId: string) => {
-    // In a real app, you'd fetch student names from the database
-    const names = {
-      student1: "Alice Johnson",
-      student2: "Bob Smith",
-      student3: "Carol Davis",
-    }
-    return names[studentId as keyof typeof names] || `Student ${studentId}`
+    return userNames[studentId] || `Student ${studentId.slice(0, 4)}`
   }
 
   if (isLoading) {
@@ -245,17 +224,37 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
                     </div>
                   </div>
 
-                  {selectedSubmission.fileUrl && (
+                  {(selectedSubmission.fileUrl || selectedSubmission.fileData) && (
                     <div className="mt-4">
                       <h4 className="font-medium text-gray-900 mb-2">Attached File:</h4>
-                      <a
-                        href={selectedSubmission.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
-                      >
-                        View Attachment
-                      </a>
+                      {selectedSubmission.fileData ? (
+                        <button
+                          onClick={() => {
+                            const blob = new Blob([selectedSubmission.fileData!.content], { type: selectedSubmission.fileData!.type })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement("a")
+                            a.href = url
+                            a.download = selectedSubmission.fileData!.name
+                            document.body.appendChild(a)
+                            a.click()
+                            document.body.removeChild(a)
+                            URL.revokeObjectURL(url)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 underline flex items-center"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Download {selectedSubmission.fileData.name}
+                        </button>
+                      ) : (
+                        <a
+                          href={selectedSubmission.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          View Attachment
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>

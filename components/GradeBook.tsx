@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import type { User, Course, Assignment, Quiz } from "../types"
-import { Download, Search, BookOpen, FileText, Users } from "lucide-react"
+import { Download, Search, BookOpen, FileText, Users, ArrowLeft } from "lucide-react"
 import { db } from "../utils/database"
 
 interface GradeBookProps {
@@ -14,6 +14,7 @@ interface GradeBookProps {
 export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedCourse, setSelectedCourse] = useState<string>("")
+  const [userRole, setUserRole] = useState<"student" | "teacher">(user.role)
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [students, setStudents] = useState<User[]>([])
@@ -33,7 +34,10 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
 
   const loadCourses = async () => {
     try {
-      const loadedCourses = await db.getCourses(user.id)
+      const loadedCourses = user.role === "teacher"
+        ? await db.getCourses(user.id)
+        : await db.getAllCourses().then(all => all.filter(c => c.students.includes(user.id)))
+
       setCourses(loadedCourses)
       if (loadedCourses.length > 0) {
         setSelectedCourse(loadedCourses[0].id)
@@ -61,30 +65,35 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
       setAssignments(courseAssignments)
       setQuizzes(courseQuizzes)
 
-      // Mock student data - in a real app, you'd fetch actual enrolled students
-      const mockStudents: User[] = course.students.map((studentId, index) => ({
-        id: studentId,
-        name: `Student ${index + 1}`,
-        email: `student${index + 1}@example.com`,
-        role: "student" as const,
-        password: "",
-        createdAt: new Date(),
-        isActive: true,
-      }))
-      setStudents(mockStudents)
+      // Fetch actual students from database
+      const allUsers = await db.getAllUsers()
+      const courseStudents = user.role === "teacher"
+        ? allUsers.filter(u => course.students.includes(u.id))
+        : allUsers.filter(u => u.id === user.id)
 
-      // Mock grades data - in a real app, you'd fetch actual grades
-      const mockGrades: Record<string, Record<string, number>> = {}
-      mockStudents.forEach((student) => {
-        mockGrades[student.id] = {}
-        courseAssignments.forEach((assignment) => {
-          mockGrades[student.id][`assignment-${assignment.id}`] = Math.floor(Math.random() * assignment.maxPoints)
-        })
-        courseQuizzes.forEach((quiz) => {
-          mockGrades[student.id][`quiz-${quiz.id}`] = Math.floor(Math.random() * 100)
-        })
-      })
-      setGrades(mockGrades)
+      setStudents(courseStudents)
+
+      // Fetch actual grades from database
+      const dbGrades: Record<string, Record<string, number>> = {}
+      for (const student of courseStudents) {
+        dbGrades[student.id] = {}
+
+        for (const assignment of courseAssignments) {
+          const submission = await db.getSubmissionByAssignmentAndStudent(assignment.id, student.id)
+          if (submission?.grade !== undefined) {
+            dbGrades[student.id][`assignment-${assignment.id}`] = submission.grade
+          }
+        }
+
+        for (const quiz of courseQuizzes) {
+          const attempts = await db.getQuizAttemptsByStudent(quiz.id, student.id)
+          if (attempts.length > 0) {
+            const bestScore = Math.max(...attempts.map(a => a.percentage))
+            dbGrades[student.id][`quiz-${quiz.id}`] = bestScore
+          }
+        }
+      }
+      setGrades(dbGrades)
     } catch (error) {
       console.error("Failed to load course data:", error)
     }
@@ -104,8 +113,22 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
   }
 
   const exportGrades = () => {
-    // In a real app, you'd generate and download a CSV/Excel file
-    console.log("Exporting grades...")
+    const csvContent = "data:text/csv;charset=utf-8,"
+      + "Student Name,Email," + assignments.map(a => a.title).join(",") + "," + quizzes.map(q => q.title).join(",") + ",Average\n"
+      + filteredStudents.map(s => {
+          const studentGrades = assignments.map(a => grades[s.id]?.[`assignment-${a.id}`] || "-")
+          const quizGrades = quizzes.map(q => grades[s.id]?.[`quiz-${q.id}`] || "-")
+          const avg = calculateStudentAverage(s.id)
+          return `${s.name},${s.email},${studentGrades.join(",")},${quizGrades.join(",")},${avg}%`
+        }).join("\n")
+
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `grades_${selectedCourse}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   if (isLoading) {
@@ -121,9 +144,14 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Grade Book</h1>
-            <p className="text-gray-600 mt-1">Manage and track student grades across all assessments</p>
+          <div className="flex items-center">
+            <button onClick={onBack} className="p-2 text-gray-600 hover:text-gray-800 transition-colors mr-4">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Grade Book</h1>
+              <p className="text-gray-600 mt-1">Manage and track student grades across all assessments</p>
+            </div>
           </div>
           <div className="flex items-center space-x-4">
             <button
@@ -199,7 +227,7 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
-                      Student
+                      {user.role === "teacher" ? "Student" : "Assessment"}
                     </th>
                     {assignments.map((assignment) => (
                       <th

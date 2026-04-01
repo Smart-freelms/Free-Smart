@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import type { User, Course } from "../types"
 import { Book, Users, Calendar, Eye, Edit, Trash2, Plus, Search } from "lucide-react"
 import { db } from "../utils/database"
+import { CourseProgress } from "./courses/CourseProgress"
 
 interface CourseListProps {
   user: User
@@ -24,7 +25,9 @@ export const CourseList: React.FC<CourseListProps> = ({ user, onCreateCourse, on
 
   const loadCourses = async () => {
     try {
-      const loadedCourses = user.role === "teacher" ? await db.getCourses(user.id) : await db.getCourses()
+      const loadedCourses = user.role === "teacher"
+        ? await db.getCourses(user.id)
+        : await db.getAllCourses().then(all => all.filter(c => c.isPublished))
       setCourses(loadedCourses)
     } catch (error) {
       console.error("Failed to load courses:", error)
@@ -36,12 +39,25 @@ export const CourseList: React.FC<CourseListProps> = ({ user, onCreateCourse, on
   const handleDeleteCourse = async (courseId: string) => {
     if (confirm("Are you sure you want to delete this course? This action cannot be undone.")) {
       try {
-        // In a real app, you'd have a deleteCourse method
-        console.log("Delete course:", courseId)
+        await db.deleteCourse(courseId)
         loadCourses()
       } catch (error) {
         console.error("Failed to delete course:", error)
       }
+    }
+  }
+
+  const handleEnroll = async (course: Course) => {
+    try {
+      const updatedCourse: Course = {
+        ...course,
+        students: [...course.students, user.id],
+        updatedAt: new Date(),
+      }
+      await db.saveCourse(updatedCourse)
+      loadCourses()
+    } catch (error) {
+      console.error("Failed to enroll in course:", error)
     }
   }
 
@@ -151,19 +167,36 @@ export const CourseList: React.FC<CourseListProps> = ({ user, onCreateCourse, on
                   </div>
                 </div>
 
+                {user.role === "student" && course.students.includes(user.id) && (
+                  <div className="mb-4">
+                    <CourseProgress course={course} studentId={user.id} />
+                  </div>
+                )}
+
                 <div className="flex items-center text-xs text-gray-400 mb-4">
                   <Calendar className="w-4 h-4 mr-1" />
                   Created {new Date(course.createdAt).toLocaleDateString()}
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => onViewCourse(course)}
-                    className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    {user.role === "teacher" ? "Manage" : "View"}
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => onViewCourse(course)}
+                      className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      {user.role === "teacher" ? "Manage" : "View"}
+                    </button>
+                    {user.role === "student" && !course.students.includes(user.id) && (
+                      <button
+                        onClick={() => handleEnroll(course)}
+                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Enroll
+                      </button>
+                    )}
+                  </div>
 
                   {user.role === "teacher" && course.createdBy === user.id && (
                     <div className="flex items-center space-x-2">

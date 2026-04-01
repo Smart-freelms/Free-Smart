@@ -128,7 +128,7 @@ export const forgotPassword = async (email: string): Promise<void> => {
   }
 
   // In a real app, this would send an email with reset link
-  console.log(`Password reset link sent to ${email}`)
+  // For this local storage version, we proceed via the security question flow in UI
 }
 
 export const resetPassword = async (email: string, newPassword: string): Promise<void> => {
@@ -271,7 +271,7 @@ export const refreshSession = async (): Promise<User | null> => {
   return freshUser
 }
 
-export const logAuthEvent = async (userId: string, event: string, details?: any): Promise<void> => {
+export const logAuthEvent = async (userId: string, event: string, details?: Record<string, unknown>): Promise<void> => {
   const logEntry = {
     id: Date.now().toString(),
     userId,

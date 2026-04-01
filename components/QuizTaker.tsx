@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Quiz, User, Question, QuizAttempt } from '../types';
+import { Quiz, User, Question, QuizAttempt, QuizResult } from '../types';
 import { ArrowLeft, Clock, CheckCircle, AlertCircle, ArrowRight, Flag } from 'lucide-react';
 import { db } from '../utils/database';
 
@@ -10,15 +10,30 @@ interface QuizTakerProps {
 }
 
 export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) => {
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
+  const [accessError, setAccessError] = useState("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    const now = new Date();
+    if (user.role === 'student') {
+      if (quiz.scheduledPublishDate && new Date(quiz.scheduledPublishDate) > now) {
+        setIsAccessDenied(true);
+        setAccessError(`This quiz is scheduled to open on ${new Date(quiz.scheduledPublishDate).toLocaleString()}`);
+      } else if (quiz.scheduledExpiryDate && new Date(quiz.scheduledExpiryDate) < now) {
+        setIsAccessDenied(true);
+        setAccessError(`This quiz expired on ${new Date(quiz.scheduledExpiryDate).toLocaleString()}`);
+      }
+    }
+  }, [quiz, user]);
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [startTime] = useState(new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<QuizResult | null>(null);
 
-  const questions = quiz.shuffleQuestions 
+  const questions = quiz.shuffleQuestions
     ? [...quiz.questions].sort(() => Math.random() - 0.5)
     : quiz.questions;
 
@@ -53,7 +68,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleAnswerChange = (value: any) => {
+  const handleAnswerChange = (value: string | string[]) => {
     setAnswers({
       ...answers,
       [currentQuestion.id]: value
@@ -108,7 +123,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    
+
     const endTime = new Date();
     const timeSpent = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
     const score = calculateScore();
@@ -149,8 +164,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
         <div className="max-w-4xl mx-auto px-4 py-8">
           {/* Results Header */}
           <div className={`rounded-2xl p-8 text-white mb-8 ${
-            results.passed 
-              ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+            results.passed
+              ? 'bg-gradient-to-r from-green-500 to-emerald-600'
               : 'bg-gradient-to-r from-red-500 to-pink-600'
           }`}>
             <div className="text-center">
@@ -166,7 +181,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
                 You scored {results.percentage}% ({results.earnedPoints}/{results.totalPoints} points)
               </p>
               <p className="opacity-90">
-                {results.passed 
+                {results.passed
                   ? `You passed! The passing score was ${quiz.passingScore}%`
                   : `You need ${quiz.passingScore}% to pass. Keep practicing!`
                 }
@@ -177,14 +192,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
           {/* Detailed Results */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
             <h3 className="text-xl font-semibold text-gray-900 mb-6">Detailed Results</h3>
-            
+
             <div className="space-y-6">
-              {results.detailedResults.map((result: any, index: number) => (
+              {results.detailedResults.map((result, index: number) => (
                 <div
                   key={result.questionId}
                   className={`border rounded-lg p-4 ${
-                    result.isCorrect 
-                      ? 'border-green-200 bg-green-50' 
+                    result.isCorrect
+                      ? 'border-green-200 bg-green-50'
                       : 'border-red-200 bg-red-50'
                   }`}
                 >
@@ -203,9 +218,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
                       {result.points}/{result.maxPoints} points
                     </span>
                   </div>
-                  
+
                   <p className="text-gray-900 font-medium mb-3">{result.question}</p>
-                  
+
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="font-medium text-gray-700">Your answer: </span>
@@ -248,6 +263,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
               Back to Dashboard
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAccessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center border border-red-100">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">{accessError}</p>
+          <button
+            onClick={onComplete}
+            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Back to Quizzes
+          </button>
         </div>
       </div>
     );
@@ -340,7 +373,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
                 </p>
               </div>
             </div>
-            
+
             {timeRemaining !== null && (
               <div className="flex items-center text-orange-600">
                 <Clock className="w-5 h-5 mr-2" />

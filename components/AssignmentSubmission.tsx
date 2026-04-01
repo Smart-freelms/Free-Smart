@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import type { User, Assignment, AssignmentSubmission as AssignmentSubmissionType } from "../types"
 import { ArrowLeft, Send, Upload, Link, FileText, Calendar, Clock, CheckCircle } from "lucide-react"
+import { db } from "../utils/database"
 
 interface AssignmentSubmissionProps {
   user: User
@@ -12,6 +13,22 @@ interface AssignmentSubmissionProps {
 }
 
 export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user, assignment, onBack }) => {
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
+  const [accessError, setAccessError] = useState("");
+
+  useEffect(() => {
+    const now = new Date();
+    if (user.role === 'student') {
+      if (assignment.scheduledPublishDate && new Date(assignment.scheduledPublishDate) > now) {
+        setIsAccessDenied(true);
+        setAccessError(`This assignment is scheduled to open on ${new Date(assignment.scheduledPublishDate).toLocaleString()}`);
+      } else if (assignment.scheduledExpiryDate && new Date(assignment.scheduledExpiryDate) < now) {
+        setIsAccessDenied(true);
+        setAccessError(`This assignment expired on ${new Date(assignment.scheduledExpiryDate).toLocaleString()}`);
+      }
+    }
+  }, [assignment, user]);
+
   const [submissionData, setSubmissionData] = useState<Partial<AssignmentSubmissionType>>({
     content: "",
     fileUrl: "",
@@ -27,15 +44,29 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
 
   const loadExistingSubmission = async () => {
     try {
-      // In a real app, you'd have a getSubmissionByAssignmentAndStudent method
-      console.log("Loading existing submission for assignment:", assignment.id, "student:", user.id)
+      const submission = await db.getSubmissionByAssignmentAndStudent(assignment.id, user.id)
+      if (submission) {
+        setExistingSubmission(submission)
+        setSubmissionData({
+          content: submission.content,
+          fileUrl: submission.fileUrl
+        })
+      }
     } catch (error) {
       console.error("Failed to load existing submission:", error)
     }
   }
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0])
+    }
+  }
+
   const handleSubmit = async () => {
-    if (!submissionData.content && !submissionData.fileUrl) {
+    if (!submissionData.content && !submissionData.fileUrl && !selectedFile) {
       setError("Please provide your submission content")
       return
     }
@@ -53,17 +84,49 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
     setError("")
 
     try {
+      let fileData = existingSubmission?.fileData
+
+      if (selectedFile) {
+        const reader = new FileReader()
+        fileData = await new Promise((resolve, reject) => {
+          reader.onload = (e) => resolve({
+            name: selectedFile.name,
+            size: selectedFile.size,
+            type: selectedFile.type,
+            content: e.target?.result as ArrayBuffer
+          })
+          reader.onerror = reject
+          reader.readAsArrayBuffer(selectedFile)
+        })
+      }
+
       const submission: AssignmentSubmissionType = {
         id: existingSubmission?.id || Date.now().toString(),
         assignmentId: assignment.id,
         studentId: user.id,
         content: submissionData.content || "",
         fileUrl: submissionData.fileUrl,
+        fileData: fileData,
         submittedAt: new Date(),
+        grade: existingSubmission?.grade,
+        feedback: existingSubmission?.feedback,
+        gradedBy: existingSubmission?.gradedBy,
+        gradedAt: existingSubmission?.gradedAt
       }
 
-      // In a real app, you'd have a saveSubmission method
-      console.log("Saving submission:", submission)
+      await db.saveSubmission(submission)
+
+      // Notify Teacher
+      await db.saveNotification({
+        id: Date.now().toString() + "-notif",
+        userId: assignment.createdBy,
+        title: "New Assignment Submission",
+        message: `${user.name} submitted ${assignment.title}`,
+        type: "assignment",
+        isRead: false,
+        createdAt: new Date()
+      })
+
       setSuccess("Assignment submitted successfully!")
       setExistingSubmission(submission)
     } catch (error) {
@@ -75,7 +138,25 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
   }
 
   const isOverdue = new Date() > new Date(assignment.dueDate)
-  const canSubmit = !isOverdue || assignment.allowLateSubmission
+  const canSubmit = (!isOverdue || assignment.allowLateSubmission) && !isAccessDenied
+
+  if (isAccessDenied) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center border border-red-100">
+          <Clock className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">{accessError}</p>
+          <button
+            onClick={onBack}
+            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Back to Assignments
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -167,20 +248,23 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
                 {assignment.submissionTypes.includes("file") && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">File Upload</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors relative">
                       <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 mb-2">Drag and drop your file here, or click to browse</p>
+                      {selectedFile ? (
+                        <p className="text-green-600 mb-2 font-medium">Selected: {selectedFile.name}</p>
+                      ) : (
+                        <p className="text-gray-600 mb-2">Drag and drop your file here, or click to browse</p>
+                      )}
                       <input
                         type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          // In a real app, you'd handle file upload here
-                          console.log("File selected:", e.target.files?.[0])
-                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={handleFileChange}
                       />
-                      <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        Choose File
-                      </button>
+                      {!selectedFile && (
+                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                          Choose File
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

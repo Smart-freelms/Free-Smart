@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import type { User, Course, Assignment, Quiz, QuizAttempt } from "../types"
 import { BarChart3, TrendingUp, Users, BookOpen, Award, Target, Clock } from "lucide-react"
 import { db } from "../utils/database"
+import { useUserNames } from "../hooks/useUserNames"
 
 interface AnalyticsDashboardProps {
   user: User
@@ -17,6 +18,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [attempts, setAttempts] = useState<QuizAttempt[]>([])
   const [selectedCourse, setSelectedCourse] = useState<string>("all")
+  const [selectedStudent, setSelectedStudent] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -50,6 +52,17 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
   }
 
   const getOverallStats = () => {
+    let filteredAttempts = attempts
+    if (selectedCourse !== "all") {
+      const course = courses.find((c) => c.id === selectedCourse)
+      if (course) {
+        filteredAttempts = filteredAttempts.filter((a) => course.quizzes.includes(a.quizId))
+      }
+    }
+    if (selectedStudent !== "all") {
+      filteredAttempts = filteredAttempts.filter((a) => a.userId === selectedStudent)
+    }
+
     const filteredCourses = selectedCourse === "all" ? courses : courses.filter((c) => c.id === selectedCourse)
     const filteredAssignments =
       selectedCourse === "all"
@@ -58,10 +71,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
     const filteredQuizzes =
       selectedCourse === "all" ? quizzes : quizzes.filter((q) => filteredCourses.some((c) => c.quizzes.includes(q.id)))
 
-    const totalStudents = filteredCourses.reduce((sum, course) => sum + course.students.length, 0)
-    const totalAttempts = attempts.filter((a) => filteredQuizzes.some((q) => q.id === a.quizId)).length
+    const totalStudents =
+      selectedStudent !== "all" ? 1 : filteredCourses.reduce((sum, course) => sum + course.students.length, 0)
+    const totalAttempts = filteredAttempts.length
     const avgScore =
-      totalAttempts > 0 ? Math.round(attempts.reduce((sum, a) => sum + a.percentage, 0) / totalAttempts) : 0
+      totalAttempts > 0 ? Math.round(filteredAttempts.reduce((sum, a) => sum + a.percentage, 0) / totalAttempts) : 0
 
     return {
       totalCourses: filteredCourses.length,
@@ -93,8 +107,27 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
     })
   }
 
+  const { userNames } = useUserNames()
+
+  const getAllStudents = () => {
+    const students = new Set<string>()
+    courses.forEach((c) => c.students.forEach((s) => students.add(s)))
+    return Array.from(students)
+  }
+
   const getRecentActivity = () => {
-    const recentAttempts = attempts
+    let filteredAttempts = attempts
+    if (selectedStudent !== "all") {
+      filteredAttempts = filteredAttempts.filter((a) => a.userId === selectedStudent)
+    }
+    if (selectedCourse !== "all") {
+      const course = courses.find((c) => c.id === selectedCourse)
+      if (course) {
+        filteredAttempts = filteredAttempts.filter((a) => course.quizzes.includes(a.quizId))
+      }
+    }
+
+    const recentAttempts = filteredAttempts
       .sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())
       .slice(0, 10)
 
@@ -103,7 +136,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
       return {
         attempt,
         quiz,
-        studentName: `Student ${attempt.userId}`, // In a real app, you'd fetch actual names
+        studentName: userNames[attempt.userId] || `Student ${attempt.userId.slice(0, 4)}`,
       }
     })
   }
@@ -131,6 +164,18 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
           </div>
           <div className="flex items-center space-x-4">
             <select
+              value={selectedStudent}
+              onChange={(e) => setSelectedStudent(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Students</option>
+              {getAllStudents().map((studentId) => (
+                <option key={studentId} value={studentId}>
+                  {userNames[studentId] || studentId}
+                </option>
+              ))}
+            </select>
+            <select
               value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -142,6 +187,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
                 </option>
               ))}
             </select>
+            <button onClick={onBack} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors">
+              Back
+            </button>
           </div>
         </div>
 

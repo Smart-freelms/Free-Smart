@@ -34,7 +34,9 @@ export const AssignmentList: React.FC<AssignmentListProps> = ({
 
   const loadAssignments = async () => {
     try {
-      const loadedAssignments = courseId ? await db.getAssignments(courseId) : await db.getAssignments()
+      const loadedAssignments = courseId
+        ? await db.getAssignments(courseId, user.role)
+        : await db.getAssignments(undefined, user.role)
       setAssignments(loadedAssignments)
     } catch (error) {
       console.error("Failed to load assignments:", error)
@@ -55,8 +57,7 @@ export const AssignmentList: React.FC<AssignmentListProps> = ({
   const handleDeleteAssignment = async (assignmentId: string) => {
     if (confirm("Are you sure you want to delete this assignment? This action cannot be undone.")) {
       try {
-        // In a real app, you'd have a deleteAssignment method
-        console.log("Delete assignment:", assignmentId)
+        await db.deleteAssignment(assignmentId)
         loadAssignments()
       } catch (error) {
         console.error("Failed to delete assignment:", error)

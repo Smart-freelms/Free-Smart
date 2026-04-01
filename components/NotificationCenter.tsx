@@ -2,21 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import type { User } from "../types"
+import type { User, Notification } from "../types"
 import { Bell, Check, Trash2, Settings, Calendar, Award, MessageSquare, X } from "lucide-react"
 import { db } from "../utils/database"
-
-interface Notification {
-  id: string
-  userId: string
-  title: string
-  message: string
-  type: "assignment" | "grade" | "message" | "announcement" | "reminder" | "system"
-  isRead: boolean
-  createdAt: string
-  actionUrl?: string
-  metadata?: Record<string, any>
-}
 
 interface NotificationCenterProps {
   user: User
@@ -190,7 +178,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ user, on
               <label className="text-sm font-medium text-gray-700">Status:</label>
               <select
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as any)}
+                onChange={(e) => setFilter(e.target.value as "all" | "unread" | "read")}
                 className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               >
                 <option value="all">All</option>

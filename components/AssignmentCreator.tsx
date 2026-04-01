@@ -3,8 +3,9 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import type { User, Assignment, Course } from "../types"
-import { ArrowLeft, Save, Calendar, FileText, Link, Upload } from "lucide-react"
+import { ArrowLeft, Save, Calendar } from "lucide-react"
 import { db } from "../utils/database"
+import { SubmissionTypeSelector } from "./assignments/SubmissionTypeSelector"
 
 interface AssignmentCreatorProps {
   user: User
@@ -46,8 +47,15 @@ export const AssignmentCreator: React.FC<AssignmentCreatorProps> = ({ user, cour
 
   const loadAssignment = async () => {
     try {
-      // In a real app, you'd have a getAssignmentById method
-      console.log("Loading assignment:", editAssignmentId)
+      if (editAssignmentId) {
+        const assignment = await db.getAssignmentById(editAssignmentId)
+        if (assignment) {
+          setAssignmentData({
+            ...assignment,
+            dueDate: new Date(assignment.dueDate)
+          })
+        }
+      }
     } catch (error) {
       console.error("Failed to load assignment:", error)
       setError("Failed to load assignment")
@@ -213,6 +221,31 @@ export const AssignmentCreator: React.FC<AssignmentCreatorProps> = ({ user, cour
             </div>
           </div>
 
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Scheduling & Availability</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Publish Date & Time (Optional)</label>
+                <input
+                  type="datetime-local"
+                  value={assignmentData.scheduledPublishDate || ""}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, scheduledPublishDate: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Expiry Date & Time (Optional)</label>
+                <input
+                  type="datetime-local"
+                  value={assignmentData.scheduledExpiryDate || ""}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, scheduledExpiryDate: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-gray-500">Students will only see this assignment during the window specified above. If empty, it is visible immediately after publishing.</p>
+          </div>
+
           {/* Submission Settings */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Submission Settings</h2>
@@ -220,52 +253,10 @@ export const AssignmentCreator: React.FC<AssignmentCreatorProps> = ({ user, cour
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-4">Allowed Submission Types *</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div
-                    onClick={() => toggleSubmissionType("text")}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      assignmentData.submissionTypes?.includes("text")
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center mb-3">
-                      <FileText className="w-8 h-8 text-blue-600" />
-                    </div>
-                    <h3 className="text-center font-medium text-gray-900">Text Submission</h3>
-                    <p className="text-center text-sm text-gray-600 mt-1">Students can type their response directly</p>
-                  </div>
-
-                  <div
-                    onClick={() => toggleSubmissionType("file")}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      assignmentData.submissionTypes?.includes("file")
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center mb-3">
-                      <Upload className="w-8 h-8 text-green-600" />
-                    </div>
-                    <h3 className="text-center font-medium text-gray-900">File Upload</h3>
-                    <p className="text-center text-sm text-gray-600 mt-1">Students can upload documents or files</p>
-                  </div>
-
-                  <div
-                    onClick={() => toggleSubmissionType("url")}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      assignmentData.submissionTypes?.includes("url")
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center mb-3">
-                      <Link className="w-8 h-8 text-purple-600" />
-                    </div>
-                    <h3 className="text-center font-medium text-gray-900">URL Submission</h3>
-                    <p className="text-center text-sm text-gray-600 mt-1">Students can submit links to their work</p>
-                  </div>
-                </div>
+                <SubmissionTypeSelector
+                  selectedTypes={assignmentData.submissionTypes || []}
+                  onToggle={toggleSubmissionType}
+                />
               </div>
 
               <div className="flex items-center">
