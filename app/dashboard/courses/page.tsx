@@ -26,7 +26,7 @@ export default function CoursesPage() {
   }
 
   return (
-    <div className="p-8">
+    <div>
       <CourseList
         user={user}
         onCreateCourse={() => setView("create")}
@@ -39,12 +39,6 @@ export default function CoursesPage() {
           setView("materials")
         }}
       />
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-      >
-        Back to Dashboard
-      </button>
     </div>
   )
 }
