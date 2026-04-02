@@ -10,5 +10,9 @@ export default function AnnouncementsPage() {
 
   if (!user) return null
 
-  return <AnnouncementSystem user={user} onBack={() => router.push('/dashboard')} />
+  return (
+    <div>
+      <AnnouncementSystem user={user} onBack={() => router.push('/dashboard')} />
+    </div>
+  )
 }

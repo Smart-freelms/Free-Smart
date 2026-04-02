@@ -32,7 +32,7 @@ export default function AssignmentsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div>
       <AssignmentList
         user={user}
         onCreateAssignment={(courseId) => {
@@ -48,12 +48,6 @@ export default function AssignmentsPage() {
           setView(user.role === "student" ? "submit" : "grade")
         }}
       />
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-      >
-        Back to Dashboard
-      </button>
     </div>
   )
 }
