@@ -62,7 +62,7 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
     if (!currentQuestion.question?.trim()) return;
 
     const newQuestion: Question = {
-      id: editingIndex !== null ? quiz.questions![editingIndex].id : Date.now().toString(),
+      id: editingIndex !== null ? quiz.questions![editingIndex].id : crypto.randomUUID(),
       type: currentQuestion.type as Question["type"],
       question: currentQuestion.question,
       options: currentQuestion.type === 'multiple-choice' ? currentQuestion.options?.filter(opt => opt.trim()) : undefined,
@@ -113,7 +113,7 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
     setIsLoading(true);
     try {
       const quizToSave: Quiz = {
-        id: editQuizId || Date.now().toString(),
+        id: editQuizId || crypto.randomUUID(),
         title: quiz.title,
         description: quiz.description || '',
         createdBy: user.id,
