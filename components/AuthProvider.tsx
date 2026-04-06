@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "../types"
 import { getCurrentUser, logout as authLogout } from "../utils/auth"
 import { db } from "../utils/database"
+import { supabase } from "../utils/supabase"
 import { useRouter, usePathname } from "next/navigation"
 
 interface AuthContextType {
@@ -25,8 +26,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const init = async () => {
       try {
         await db.init()
-        const currentUser = getCurrentUser()
+        const currentUser = await getCurrentUser()
         setUser(currentUser)
+
+        // Supabase Auth Listener for synchronization
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_IN' && session) {
+            const freshUser = await getCurrentUser()
+            setUser(freshUser)
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null)
+          } else if (event === 'USER_UPDATED' && session) {
+            const freshUser = await getCurrentUser()
+            setUser(freshUser)
+          }
+        })
+
+        return () => subscription.unsubscribe()
       } catch (error) {
         console.error("Auth init error:", error)
       } finally {
@@ -51,8 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     router.push("/dashboard")
   }
 
-  const logout = () => {
-    authLogout()
+  const logout = async () => {
+    await authLogout()
     setUser(null)
     router.push("/auth")
   }
