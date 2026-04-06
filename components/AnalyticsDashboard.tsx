@@ -147,16 +147,15 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+    <div className="pb-8">
+      <div>
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Analytics Dashboard</h1>
@@ -187,9 +186,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
                 </option>
               ))}
             </select>
-            <button onClick={onBack} className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors">
-              Back
-            </button>
           </div>
         </div>
 

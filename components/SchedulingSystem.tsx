@@ -138,21 +138,17 @@ export const SchedulingSystem: React.FC<SchedulingSystemProps> = ({ user, onBack
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
+    <div className="pb-8">
+      <div>
         <div className="flex items-center justify-between mb-8">
           <div>
-            <button onClick={onBack} className="text-purple-600 hover:text-purple-700 mb-4 flex items-center">
-              ← Back to Dashboard
-            </button>
             <h1 className="text-3xl font-bold text-gray-900">Scheduling System</h1>
             <p className="text-gray-600">Manage automated publishing and notifications</p>
           </div>

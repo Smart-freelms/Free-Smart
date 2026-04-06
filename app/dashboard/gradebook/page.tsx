@@ -10,5 +10,9 @@ export default function GradeBookPage() {
 
   if (!user) return null
 
-  return <GradeBook user={user} onBack={() => router.push('/dashboard')} />
+  return (
+    <div>
+      <GradeBook user={user} onBack={() => router.push('/dashboard')} />
+    </div>
+  )
 }

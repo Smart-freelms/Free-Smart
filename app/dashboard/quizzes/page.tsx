@@ -71,7 +71,7 @@ function QuizzesContent() {
   }
 
   return (
-    <div className="p-8">
+    <div>
       <h1 className="text-2xl font-bold mb-4">Quizzes</h1>
       {user.role === "teacher" && (
         <button
@@ -106,12 +106,6 @@ function QuizzesContent() {
           </div>
         ))}
       </div>
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-      >
-        Back to Dashboard
-      </button>
     </div>
   )
 }

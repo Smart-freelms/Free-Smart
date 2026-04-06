@@ -34,7 +34,7 @@ function DiscussionsContent() {
   }
 
   return (
-    <div className="p-8 text-center">
+    <div className="text-center py-12">
       <h2 className="text-xl font-bold mb-4">Select a Course</h2>
       <p className="text-gray-600 mb-6">Please select a course to view its discussion forum.</p>
       <button
