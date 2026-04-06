@@ -80,7 +80,7 @@ export const CourseCreator: React.FC<CourseCreatorProps> = ({ user, editCourseId
 
     try {
       const course: Course = {
-        id: editCourseId || Date.now().toString(),
+        id: editCourseId || crypto.randomUUID(),
         title: courseData.title!,
         description: courseData.description!,
         createdBy: user.id,
@@ -115,7 +115,7 @@ export const CourseCreator: React.FC<CourseCreatorProps> = ({ user, editCourseId
     }
 
     const material: CourseMaterial = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       title: newMaterial.title!,
       type: newMaterial.type!,
       url: newMaterial.url,
@@ -147,7 +147,7 @@ export const CourseCreator: React.FC<CourseCreatorProps> = ({ user, editCourseId
     if (!files || files.length === 0) return
 
     Array.from(files).forEach((file) => {
-      const uploadId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
+      const uploadId = crypto.randomUUID()
 
       // Add to upload progress
       setUploadProgress((prev) => [

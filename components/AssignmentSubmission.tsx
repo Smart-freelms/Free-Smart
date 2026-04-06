@@ -101,7 +101,7 @@ export const AssignmentSubmission: React.FC<AssignmentSubmissionProps> = ({ user
       }
 
       const submission: AssignmentSubmissionType = {
-        id: existingSubmission?.id || Date.now().toString(),
+        id: existingSubmission?.id || crypto.randomUUID(),
         assignmentId: assignment.id,
         studentId: user.id,
         content: submissionData.content || "",

@@ -204,7 +204,7 @@ export const refreshSession = async (): Promise<User | null> => {
 
 export const logAuthEvent = async (userId: string, event: string, details?: Record<string, unknown>): Promise<void> => {
   const logEntry = {
-    id: Date.now().toString(),
+    id: crypto.randomUUID(),
     userId,
     event,
     details,

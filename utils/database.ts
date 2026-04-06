@@ -861,7 +861,7 @@ class QuizDatabase {
     const getRequest = store.get(notificationId)
 
     return new Promise((resolve, reject) => {
-      getRequest.onsuccess = () => {
+      getRequest.onsuccess = async () => {
         const notification = getRequest.result
         if (notification) {
           notification.isRead = true
@@ -1098,7 +1098,7 @@ class QuizDatabase {
     const getRequest = store.get(announcementId)
 
     return new Promise((resolve, reject) => {
-      getRequest.onsuccess = () => {
+      getRequest.onsuccess = async () => {
         const announcement = getRequest.result
         if (announcement) {
           const updatedAnnouncement = { ...announcement, ...updates, updatedAt: new Date().toISOString() }
@@ -1240,7 +1240,7 @@ class QuizDatabase {
     const getRequest = store.get(eventId)
 
     return new Promise((resolve, reject) => {
-      getRequest.onsuccess = () => {
+      getRequest.onsuccess = async () => {
         const event = getRequest.result
         if (event) {
           const updatedEvent = { ...event, ...updates }

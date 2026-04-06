@@ -78,7 +78,7 @@ export const AssignmentCreator: React.FC<AssignmentCreatorProps> = ({ user, cour
 
     try {
       const assignment: Assignment = {
-        id: editAssignmentId || Date.now().toString(),
+        id: editAssignmentId || crypto.randomUUID(),
         title: assignmentData.title!,
         description: assignmentData.description!,
         courseId: assignmentData.courseId!,
