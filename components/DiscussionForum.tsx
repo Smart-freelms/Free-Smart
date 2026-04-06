@@ -37,49 +37,36 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
     }
   }
 
-  const handleCreatePost = async () => {
-    if (!newPost.title.trim() || !newPost.content.trim()) return
-
+  const handleCreatePost = async (title: string, content: string) => {
     await db.createDiscussionPost({
+      id: crypto.randomUUID(),
       courseId: course.id,
       authorId: user.id,
-      title: newPost.title,
-      content: newPost.content,
-      replies: []
+      title: title,
+      content: content,
     })
 
-    loadPosts()
-    setNewPost({ title: "", content: "" })
+    await loadPosts()
     setShowNewPostForm(false)
   }
 
-  const handleReply = async (postId: string) => {
-    if (!newReply.trim()) return
+  const handleReply = async (postId: string, content: string) => {
+    if (!content.trim()) return
 
-    const postToUpdate = posts.find(p => p.id === postId)
-    if (!postToUpdate) return
+    await db.createDiscussionPost({
+      id: crypto.randomUUID(),
+      courseId: course.id,
+      authorId: user.id,
+      content: content,
+      parentId: postId
+    })
 
-    const updatedPost = {
-      ...postToUpdate,
-      replies: [
-        ...postToUpdate.replies,
-        {
-          id: Date.now().toString(),
-          postId,
-          authorId: user.id,
-          content: newReply,
-          createdAt: new Date()
-        }
-      ],
-      updatedAt: new Date()
-    }
-
-    await db.createDiscussionPost(updatedPost)
-    loadPosts()
+    await loadPosts()
     if (selectedPost?.id === postId) {
-      setSelectedPost(updatedPost)
+      const updatedPosts = await db.getDiscussionPosts(course.id)
+      const updatedPost = updatedPosts.find(p => p.id === postId)
+      if (updatedPost) setSelectedPost(updatedPost)
     }
-    setNewReply("")
   }
 
   const getUserName = (userId: string) => {

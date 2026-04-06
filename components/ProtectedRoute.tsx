@@ -1,5 +1,7 @@
+"use client"
+
 import type React from "react"
-import { getCurrentUser } from "../utils/auth"
+import { useAuth } from "./AuthProvider"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -8,7 +10,11 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole, fallback }) => {
-  const user = getCurrentUser()
+  const { user, isLoading } = useAuth()
+
+  if (isLoading) {
+    return <div className="text-center p-8">Loading...</div>
+  }
 
   if (!user) {
     return fallback || <div className="text-center p-8">Please log in to access this page.</div>
