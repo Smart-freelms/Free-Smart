@@ -60,15 +60,19 @@ export default function DashboardPage() {
     }
   }
 
-  return user.role === "student" ? (
-    <StudentDashboard user={user} quizzes={quizzes} onLogout={logout} onViewChange={handleViewChange as any} />
-  ) : (
-    <TeacherDashboard
-      user={user}
-      quizzes={quizzes}
-      onLogout={logout}
-      onViewChange={handleViewChange as any}
-      onQuizzesUpdate={loadQuizzes}
-    />
+  return (
+    <div>
+      {user.role === "student" ? (
+        <StudentDashboard user={user} quizzes={quizzes} onLogout={logout} onViewChange={handleViewChange as any} />
+      ) : (
+        <TeacherDashboard
+          user={user}
+          quizzes={quizzes}
+          onLogout={logout}
+          onViewChange={handleViewChange as any}
+          onQuizzesUpdate={loadQuizzes}
+        />
+      )}
+    </div>
   )
 }

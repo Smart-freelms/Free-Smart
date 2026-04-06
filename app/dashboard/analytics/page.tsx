@@ -10,5 +10,9 @@ export default function AnalyticsPage() {
 
   if (!user) return null
 
-  return <AnalyticsDashboard user={user} onBack={() => router.push('/dashboard')} />
+  return (
+    <div>
+      <AnalyticsDashboard user={user} onBack={() => router.push('/dashboard')} />
+    </div>
+  )
 }

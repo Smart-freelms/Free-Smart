@@ -29,11 +29,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   title = "Smart LMS",
   subtitle
 }) => {
-  const { user, logout } = useAuth()
+  const { user, logout, isLoading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-
-  if (!user) return null
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -49,7 +47,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
   ]
 
-  const currentSubtitle = subtitle || (user.role === 'teacher' ? 'Teacher Dashboard' : 'Student Dashboard')
+  const currentSubtitle = subtitle || (user?.role === 'teacher' ? 'Teacher Dashboard' : 'Student Dashboard')
+
+  if (isLoading || !user) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

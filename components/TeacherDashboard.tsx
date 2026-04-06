@@ -93,47 +93,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 pb-12">
-      <DashboardHeader
-        title="Smart LMS"
-        subtitle="Teacher Dashboard"
-        userName={user.name}
-        userEmail={user.email}
-        onLogout={onLogout}
-      >
-        <div className="hidden lg:flex items-center space-x-2 mr-4">
-          <button
-            onClick={() => onViewChange("courses")}
-            className="flex items-center px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-          >
-            <BookOpen className="w-4 h-4 mr-1.5" />
-            Courses
-          </button>
-          <button
-            onClick={() => onViewChange("assignments")}
-            className="flex items-center px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
-          >
-            <FileText className="w-4 h-4 mr-1.5" />
-            Assignments
-          </button>
-          <button
-            onClick={() => onViewChange("create-quiz")}
-            className="flex items-center px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors text-sm"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            New Quiz
-          </button>
-        </div>
-      </DashboardHeader>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="pb-12">
+      <div>
         <WelcomeSection
           userName={user.name.split(" ")[0]}
           message="Manage your courses, assignments, and communicate with students"

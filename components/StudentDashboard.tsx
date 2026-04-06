@@ -60,23 +60,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ user, quizze
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center p-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-12">
-      <DashboardHeader
-        title="Smart LMS"
-        subtitle="Student Dashboard"
-        userName={user.name}
-        userEmail={user.email}
-        onLogout={onLogout}
-      />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="pb-12">
+      <div>
         <WelcomeSection
           userName={user.name.split(" ")[0]}
           message="Ready to challenge yourself with some quizzes and assignments?"
