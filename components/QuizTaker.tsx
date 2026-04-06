@@ -129,7 +129,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     const score = calculateScore();
 
     const attempt: QuizAttempt = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       quizId: quiz.id,
       userId: user.id,
       answers,

@@ -30,71 +30,54 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
     try {
       const dbPosts = await db.getDiscussionPosts(course.id)
       setPosts(dbPosts)
+      return dbPosts
     } catch (error) {
       console.error("Failed to load posts:", error)
+      return []
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleCreatePost = async () => {
-    if (!newPost.title.trim() || !newPost.content.trim()) return
-
+  const handleCreatePost = async (title: string, content: string) => {
     await db.createDiscussionPost({
+      id: crypto.randomUUID(),
       courseId: course.id,
       authorId: user.id,
-      title: newPost.title,
-      content: newPost.content,
-      replies: []
+      title: title,
+      content: content,
     })
 
-    loadPosts()
-    setNewPost({ title: "", content: "" })
+    await loadPosts()
     setShowNewPostForm(false)
   }
 
-  const handleReply = async (postId: string) => {
-    if (!newReply.trim()) return
+  const handleReply = async (postId: string, content: string) => {
+    if (!content.trim()) return
 
-    const postToUpdate = posts.find(p => p.id === postId)
-    if (!postToUpdate) return
+    await db.createDiscussionPost({
+      id: crypto.randomUUID(),
+      courseId: course.id,
+      authorId: user.id,
+      content: content,
+      parentId: postId
+    })
 
-    const updatedPost = {
-      ...postToUpdate,
-      replies: [
-        ...postToUpdate.replies,
-        {
-          id: Date.now().toString(),
-          postId,
-          authorId: user.id,
-          content: newReply,
-          createdAt: new Date()
-        }
-      ],
-      updatedAt: new Date()
-    }
+    const updatedPosts = await loadPosts()
 
-    await db.createDiscussionPost(updatedPost)
-    loadPosts()
+    // If the selected post itself was the one replied to, refresh it
+    // although for root posts, only the replies list (calculated from all posts) changes.
     if (selectedPost?.id === postId) {
-      setSelectedPost(updatedPost)
+      const updatedPost = updatedPosts.find(p => p.id === postId)
+      if (updatedPost) setSelectedPost(updatedPost)
     }
-    setNewReply("")
-  }
-
-  const getUserName = (userId: string) => {
-    return `User ${userId.slice(0, 4)}`
-  }
-
-  const getReplies = (postId: string) => {
-    return posts.filter((p) => p.parentId === postId)
   }
 
   const filteredThreads = posts
     .filter((p) => !p.parentId)
     .filter(
       (post) =>
-        post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         post.content.toLowerCase().includes(searchTerm.toLowerCase()),
     )
 

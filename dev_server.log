@@ -1,0 +1,24 @@
+
+> smart-lms@1.0.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+ ⚠ Port 3001 is in use, trying 3002 instead.
+ ⚠ Port 3002 is in use, trying 3003 instead.
+  ▲ Next.js 14.2.16
+  - Local:        http://localhost:3003
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.8s
+ ○ Compiling /auth ...
+ ✓ Compiled /auth in 7.4s (614 modules)
+ GET /auth 200 in 8376ms
+ ✓ Compiled in 1040ms (306 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 2.7s (588 modules)
+ GET / 200 in 2830ms
+ GET /auth 200 in 50ms
+ GET /auth 200 in 41ms
+ GET /auth 200 in 28ms
+ GET /auth 200 in 36ms
