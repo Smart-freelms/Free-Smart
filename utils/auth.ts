@@ -56,7 +56,6 @@ export const login = async (email: string, name: string, role: "student" | "teac
       isActive: true,
       password: '',
     }
-    await db.saveUser(user)
   }
 
   return user
@@ -89,6 +88,8 @@ export const signUp = async (
     isActive: true,
   }
 
+  // Save to local IndexedDB for immediate availability/offline support
+  // The Supabase 'profiles' table is handled by a database trigger (on_auth_user_created)
   await db.saveUser(user)
 
   // Also save to Supabase profiles table for persistence
