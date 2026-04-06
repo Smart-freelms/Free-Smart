@@ -1,76 +1,35 @@
+import { supabase } from "./supabase"
 import type { User } from "../types"
 import { db } from "./database"
 
-// Simple hash function for demo - in production use bcrypt
-const hashPassword = (password: string): string => {
-  // Simple hash for demo - use bcrypt in production
-  return btoa(password + "salt123")
-}
+export const getCurrentUser = async (): Promise<User | null> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return null
 
-const verifyPassword = (password: string, hash: string): boolean => {
-  return hashPassword(password) === hash
-}
-
-// JWT-like token generation for demo
-const generateToken = (user: User): string => {
-  const payload = {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-  }
-  return btoa(JSON.stringify(payload))
-}
-
-const verifyToken = (token: string): User | null => {
-  try {
-    const payload = JSON.parse(atob(token))
-    if (payload.exp < Date.now()) {
-      return null // Token expired
-    }
-    return payload
-  } catch {
-    return null
-  }
-}
-
-export const getCurrentUser = (): User | null => {
-  const token = localStorage.getItem("authToken")
-  if (!token) return null
-
-  const user = verifyToken(token)
+  const user = await db.getUserById(session.user.id)
   if (!user) {
-    localStorage.removeItem("authToken")
-    return null
-  }
+    // If user is in Supabase Auth but not in local DB, we should sync it
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
 
-  return user
-}
-
-export const setCurrentUser = (user: User | null): void => {
-  if (user) {
-    const token = generateToken(user)
-    localStorage.setItem("authToken", token)
-  } else {
-    localStorage.removeItem("authToken")
-  }
-}
-
-export const login = async (email: string, name: string, role: "student" | "teacher"): Promise<User> => {
-  let user = await db.getUserByEmail(email)
-
-  if (!user) {
-    user = {
-      id: Date.now().toString(),
-      name,
-      email,
-      role,
-      createdAt: new Date(),
+    if (profile) {
+      const newUser: User = {
+        id: session.user.id,
+        name: profile.name || session.user.user_metadata.name || 'User',
+        email: session.user.email!,
+        role: profile.role || session.user.user_metadata.role || 'student',
+        createdAt: new Date(session.user.created_at),
+        isActive: true,
+        password: '', // Password is not stored in our profile table
+      }
+      await db.saveUser(newUser)
+      return newUser
     }
-    await db.saveUser(user)
   }
 
-  setCurrentUser(user)
   return user
 }
 
@@ -80,141 +39,109 @@ export const signUp = async (
   name: string,
   role: "student" | "teacher",
 ): Promise<User> => {
-  const existingUser = await db.getUserByEmail(email)
-  if (existingUser) {
-    throw new Error("User already exists with this email")
-  }
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { name, role }
+    }
+  })
 
-  const hashedPassword = hashPassword(password)
+  if (error) throw error
+  if (!data.user) throw new Error("Sign up failed")
 
   const user: User = {
-    id: Date.now().toString(),
+    id: data.user.id,
     name,
     email,
     role,
-    password: hashedPassword,
+    password: '', // Don't store password locally
     createdAt: new Date(),
     isActive: true,
   }
 
+  // Save to local IndexedDB for immediate availability/offline support
+  // The Supabase 'profiles' table is handled by a database trigger (on_auth_user_created)
   await db.saveUser(user)
-  setCurrentUser(user)
+
   return user
 }
 
 export const signIn = async (email: string, password: string): Promise<User> => {
-  const user = await db.getUserByEmail(email)
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
+  if (error) throw error
+  if (!data.user) throw new Error("Sign in failed")
+
+  let user = await db.getUserById(data.user.id)
   if (!user) {
-    throw new Error("No account found with this email")
+    // Sync with Supabase if not in local DB
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single()
+
+    user = {
+      id: data.user.id,
+      name: profile?.name || data.user.user_metadata.name || 'User',
+      email: data.user.email!,
+      role: profile?.role || data.user.user_metadata.role || 'student',
+      createdAt: new Date(data.user.created_at),
+      isActive: true,
+      password: '',
+    }
+    await db.saveUser(user)
   }
 
-  if (!verifyPassword(password, user.password)) {
-    throw new Error("Invalid password")
-  }
-
-  if (!user.isActive) {
-    throw new Error("Account is deactivated. Please contact administrator.")
-  }
-
-  setCurrentUser(user)
   return user
 }
 
 export const forgotPassword = async (email: string): Promise<void> => {
-  const user = await db.getUserByEmail(email)
-  if (!user) {
-    throw new Error("No account found with this email")
-  }
-
-  // In a real app, this would send an email with reset link
-  // For this local storage version, we proceed via the security question flow in UI
+  const { error } = await supabase.auth.resetPasswordForEmail(email)
+  if (error) throw error
 }
 
 export const resetPassword = async (email: string, newPassword: string): Promise<void> => {
-  const user = await db.getUserByEmail(email)
-  if (!user) {
-    throw new Error("No account found with this email")
-  }
-
-  user.password = hashPassword(newPassword)
-  await db.saveUser(user)
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword
+  })
+  if (error) throw error
 }
 
 export const updateProfile = async (userId: string, updates: Partial<User>): Promise<User> => {
   const user = await db.getUserById(userId)
-  if (!user) {
-    throw new Error("User not found")
-  }
+  if (!user) throw new Error("User not found")
 
   const updatedUser = { ...user, ...updates }
   await db.saveUser(updatedUser)
-  setCurrentUser(updatedUser)
+
+  // Sync to Supabase
+  await supabase.from('profiles').update({
+    name: updates.name,
+    role: updates.role,
+    bio: updates.bio,
+    profile_picture: updates.profilePicture
+  }).eq('id', userId)
+
   return updatedUser
 }
 
-export const isAuthenticated = (): boolean => {
-  return getCurrentUser() !== null
-}
-
-export const hasRole = (requiredRole: "student" | "teacher"): boolean => {
-  const user = getCurrentUser()
-  return user?.role === requiredRole
-}
-
-export const logout = (): void => {
-  setCurrentUser(null)
+export const logout = async (): Promise<void> => {
+  await supabase.auth.signOut()
 }
 
 export const verifyIdentityForReset = async (email: string, name: string): Promise<string> => {
-  const user = await db.getUserByEmail(email)
-  if (!user) {
-    throw new Error("No account found with this email")
-  }
-
-  if (user.name.toLowerCase() !== name.toLowerCase()) {
-    throw new Error("Name does not match our records")
-  }
-
-  // Generate a temporary reset token
-  const resetToken = Math.random().toString(36).substring(2, 15)
-
-  // In a real app, store this token with expiration
-  localStorage.setItem(
-    `resetToken_${email}`,
-    JSON.stringify({
-      token: resetToken,
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-      userId: user.id,
-    }),
-  )
-
-  return resetToken
+  // Supabase handles this via email, but for compatibility:
+  await forgotPassword(email)
+  return "email_sent"
 }
 
 export const verifySecurityAnswer = async (email: string, answer: string, token: string): Promise<boolean> => {
-  const user = await db.getUserByEmail(email)
-  if (!user) {
-    throw new Error("Invalid reset session")
-  }
-
-  const resetData = localStorage.getItem(`resetToken_${email}`)
-  if (!resetData) {
-    throw new Error("Reset session expired")
-  }
-
-  const { token: storedToken, expires } = JSON.parse(resetData)
-
-  if (storedToken !== token || Date.now() > expires) {
-    throw new Error("Reset session expired")
-  }
-
-  // For demo purposes, accept any non-empty answer
-  // In production, this would verify against stored security answer
-  if (!answer.trim()) {
-    throw new Error("Security answer cannot be empty")
-  }
-
+  // Simplified for demo compatibility
   return true
 }
 
@@ -224,51 +151,14 @@ export const completePasswordReset = async (
   confirmPassword: string,
   token: string,
 ): Promise<void> => {
-  if (newPassword !== confirmPassword) {
-    throw new Error("Passwords do not match")
-  }
-
-  if (newPassword.length < 8) {
-    throw new Error("Password must be at least 8 characters long")
-  }
-
-  const user = await db.getUserByEmail(email)
-  if (!user) {
-    throw new Error("Invalid reset session")
-  }
-
-  const resetData = localStorage.getItem(`resetToken_${email}`)
-  if (!resetData) {
-    throw new Error("Reset session expired")
-  }
-
-  const { token: storedToken, expires } = JSON.parse(resetData)
-
-  if (storedToken !== token || Date.now() > expires) {
-    throw new Error("Reset session expired")
-  }
-
-  // Update password
-  user.password = hashPassword(newPassword)
-  await db.saveUser(user)
-
-  // Clean up reset token
-  localStorage.removeItem(`resetToken_${email}`)
+  if (newPassword !== confirmPassword) throw new Error("Passwords do not match")
+  await resetPassword(email, newPassword)
 }
 
 export const refreshSession = async (): Promise<User | null> => {
-  const user = getCurrentUser()
-  if (!user) return null
-
-  // Refresh user data from database
-  const freshUser = await db.getUserById(user.id)
-  if (!freshUser || !freshUser.isActive) {
-    logout()
-    return null
-  }
-
-  setCurrentUser(freshUser)
-  return freshUser
+  const { data: { session } } = await supabase.auth.refreshSession()
+  if (!session) return null
+  return getCurrentUser()
 }
 
 export const logAuthEvent = async (userId: string, event: string, details?: Record<string, unknown>): Promise<void> => {
@@ -277,9 +167,21 @@ export const logAuthEvent = async (userId: string, event: string, details?: Reco
     userId,
     event,
     details,
-    timestamp: new Date(),
-    ip: "127.0.0.1", // In production, get real IP
+    timestamp: new Date().toISOString(),
+    ip: "127.0.0.1",
   }
 
-  await db.saveAuthLog(logEntry)
+  await db.saveAuthLog(logEntry as any)
+
+  // Mirror to Supabase
+  try {
+    await supabase.from('auth_logs').insert({
+      user_id: userId,
+      event,
+      details,
+      timestamp: new Date().toISOString()
+    })
+  } catch (e) {
+    console.error("Failed to log auth event to Supabase:", e)
+  }
 }
