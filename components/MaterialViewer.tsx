@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { db } from '../utils/database'
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { db } from '@/utils/database'
 import type { User, Course, CourseMaterial } from "../types"
 import {
   ArrowLeft,
@@ -19,13 +19,12 @@ import {
 
 interface MaterialViewerProps {
   user: User
-  courseId: string
+  course: Course
   onBack: () => void
 }
 
-export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, courseId, onBack }) => {
-  const [course, setCourse] = useState<Course | null>(null)
-  const [materials, setMaterials] = useState<CourseMaterial[]>([])
+export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, course, onBack }) => {
+  const [materials, setMaterials] = useState<CourseMaterial[]>(course.materials || [])
   const [selectedMaterials, setSelectedMaterials] = useState<Set<string>>(new Set())
   const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -67,23 +66,10 @@ export const MaterialViewer: React.FC<MaterialViewerProps> = ({ user, courseId, 
   }
 
   useEffect(() => {
-    loadCourseData()
-  }, [courseId, user.role])
-
-  const loadCourseData = async () => {
-    setIsLoading(true)
-    try {
-      const data = await db.getCourseById(courseId, user.role)
-      if (data) {
-        setCourse(data)
-        setMaterials(data.materials || [])
-      }
-    } catch (error) {
-      console.error("Failed to load course materials:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    // Standardize role-based material access if needed,
+    // but the course object passed from parent is already filtered for students.
+    setIsLoading(false)
+  }, [course.id])
 
   const selectAllMaterials = () => {
     if (selectedMaterials.size === filteredMaterials.length) {

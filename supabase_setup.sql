@@ -1,17 +1,14 @@
 -- ############################################################################
--- SUPABASE DATABASE SETUP SCRIPT FOR SMART LMS (VERSION 2.3)
--- Final fix for RLS 403 Forbidden and UUID 400 Bad Request errors.
--- Optimized with aliases and explicit permissions to prevent ambiguity.
+-- SUPABASE DATABASE SETUP SCRIPT FOR SMART LMS
+-- This script sets up tables, RLS policies, functions, and triggers for production.
 -- ############################################################################
-
--- Ensure we are in the public schema
-SET search_path TO public;
 
 -- ############################################################################
 -- 1. TABLES SETUP
 -- ############################################################################
 
--- 1.1 PROFILES
+-- 1.1 PROFILES (Publicly accessible user information)
+-- Linked to auth.users via id
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
@@ -31,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.quizzes (
     description TEXT,
     created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     questions JSONB NOT NULL DEFAULT '[]'::jsonb,
-    time_limit INTEGER,
+    time_limit INTEGER, -- In minutes
     allow_retry BOOLEAN DEFAULT TRUE,
     shuffle_questions BOOLEAN DEFAULT FALSE,
     shuffle_options BOOLEAN DEFAULT FALSE,
@@ -49,12 +46,12 @@ CREATE TABLE IF NOT EXISTS public.quiz_attempts (
     quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     answers JSONB NOT NULL DEFAULT '{}'::jsonb,
-    score NUMERIC(10, 2) NOT NULL,
+    score NUMERIC(5, 2) NOT NULL,
     total_points INTEGER NOT NULL,
-    percentage NUMERIC(10, 2) NOT NULL,
+    percentage NUMERIC(5, 2) NOT NULL,
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
-    time_spent INTEGER NOT NULL,
+    time_spent INTEGER NOT NULL, -- In seconds
     passed BOOLEAN NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -65,10 +62,10 @@ CREATE TABLE IF NOT EXISTS public.courses (
     title TEXT NOT NULL,
     description TEXT,
     created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    students UUID[] DEFAULT '{}',
-    quizzes UUID[] DEFAULT '{}',
-    assignments UUID[] DEFAULT '{}',
-    materials JSONB DEFAULT '[]'::jsonb,
+    students UUID[] DEFAULT '{}', -- Array of student profile IDs
+    quizzes UUID[] DEFAULT '{}', -- Array of quiz IDs
+    assignments UUID[] DEFAULT '{}', -- Array of assignment IDs
+    materials JSONB DEFAULT '[]'::jsonb, -- Array of course materials
     is_published BOOLEAN DEFAULT FALSE,
     scheduled_publish_date TIMESTAMPTZ,
     scheduled_expiry_date TIMESTAMPTZ,
@@ -112,7 +109,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
-    type TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('info', 'success', 'warning', 'error')),
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -168,10 +165,10 @@ CREATE TABLE IF NOT EXISTS public.scheduled_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     description TEXT,
-    type TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('quiz', 'assignment', 'course', 'announcement')),
     entity_id UUID NOT NULL,
     scheduled_date TIMESTAMPTZ NOT NULL,
-    action TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('publish', 'unpublish', 'due', 'reminder')),
     is_completed BOOLEAN DEFAULT FALSE,
     created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -200,12 +197,14 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(use
 CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON public.messages(sender_id, receiver_id);
 CREATE INDEX IF NOT EXISTS idx_announcements_course_id ON public.announcements(course_id);
 CREATE INDEX IF NOT EXISTS idx_discussion_posts_course_id ON public.discussion_posts(course_id);
+CREATE INDEX IF NOT EXISTS idx_discussion_posts_parent_id ON public.discussion_posts(parent_id);
 CREATE INDEX IF NOT EXISTS idx_scheduled_events_date ON public.scheduled_events(scheduled_date);
 
 -- ############################################################################
 -- 3. FUNCTIONS & TRIGGERS
 -- ############################################################################
 
+-- 3.1 UPDATED_AT TRIGGER FUNCTION
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -214,17 +213,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Clean up and recreate updated_at triggers
-DO $$
-DECLARE
-    t TEXT;
-BEGIN
-    FOR t IN SELECT table_name FROM information_schema.columns WHERE column_name = 'updated_at' AND table_schema = 'public' LOOP
-        EXECUTE format('DROP TRIGGER IF EXISTS set_updated_at_%I ON public.%I', t, t);
-        EXECUTE format('CREATE TRIGGER set_updated_at_%I BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at()', t, t);
-    END LOOP;
-END $$;
+-- 3.2 ATTACH UPDATED_AT TRIGGERS
+CREATE TRIGGER set_updated_at_profiles BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+CREATE TRIGGER set_updated_at_quizzes BEFORE UPDATE ON public.quizzes FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+CREATE TRIGGER set_updated_at_courses BEFORE UPDATE ON public.courses FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+CREATE TRIGGER set_updated_at_assignments BEFORE UPDATE ON public.assignments FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+CREATE TRIGGER set_updated_at_submissions BEFORE UPDATE ON public.submissions FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+CREATE TRIGGER set_updated_at_announcements BEFORE UPDATE ON public.announcements FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+CREATE TRIGGER set_updated_at_discussion_posts BEFORE UPDATE ON public.discussion_posts FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
 
+-- 3.3 AUTOMATIC PROFILE CREATION ON SIGN UP
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -248,8 +246,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
+CREATE OR REPLACE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
@@ -257,7 +254,6 @@ CREATE TRIGGER on_auth_user_created
 -- 4. ROW LEVEL SECURITY (RLS) POLICIES
 -- ############################################################################
 
--- Enable RLS on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
@@ -272,82 +268,84 @@ ALTER TABLE public.discussion_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.scheduled_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.auth_logs ENABLE ROW LEVEL SECURITY;
 
--- DROP ALL EXISTING POLICIES TO ENSURE A CLEAN SLATE
-DO $$
-DECLARE
-    pol RECORD;
-BEGIN
-    FOR pol IN (SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public') LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', pol.policyname, pol.tablename);
-    END LOOP;
-END $$;
-
 -- 4.1 PROFILES POLICIES
-CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- 4.2 QUIZZES POLICIES
-CREATE POLICY "quizzes_select" ON public.quizzes FOR SELECT USING (is_published = true OR auth.uid() = created_by);
-CREATE POLICY "quizzes_insert" ON public.quizzes FOR INSERT WITH CHECK (auth.uid() = created_by);
-CREATE POLICY "quizzes_update" ON public.quizzes FOR UPDATE USING (auth.uid() = created_by);
-CREATE POLICY "quizzes_delete" ON public.quizzes FOR DELETE USING (auth.uid() = created_by);
+CREATE POLICY "Teachers can manage their own quizzes" ON public.quizzes
+    FOR ALL USING (auth.uid() = created_by AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'teacher');
+CREATE POLICY "Students can view published quizzes" ON public.quizzes
+    FOR SELECT USING (is_published = true AND (scheduled_publish_date IS NULL OR scheduled_publish_date <= NOW()) AND (scheduled_expiry_date IS NULL OR scheduled_expiry_date >= NOW()));
 
 -- 4.3 QUIZ ATTEMPTS POLICIES
-CREATE POLICY "attempts_select" ON public.quiz_attempts FOR SELECT USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.quizzes q WHERE q.id = quiz_attempts.quiz_id AND q.created_by = auth.uid()));
-CREATE POLICY "attempts_insert" ON public.quiz_attempts FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "attempts_update" ON public.quiz_attempts FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Students can view and create their own attempts" ON public.quiz_attempts
+    FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Teachers can view attempts of their quizzes" ON public.quiz_attempts
+    FOR SELECT USING (EXISTS (SELECT 1 FROM public.quizzes WHERE id = quiz_attempts.quiz_id AND created_by = auth.uid()));
 
 -- 4.4 COURSES POLICIES
-CREATE POLICY "courses_select" ON public.courses FOR SELECT USING (is_published = true OR auth.uid() = created_by OR auth.uid() = ANY(students));
-CREATE POLICY "courses_insert" ON public.courses FOR INSERT WITH CHECK (auth.uid() = created_by);
-CREATE POLICY "courses_update" ON public.courses FOR UPDATE USING (auth.uid() = created_by);
-CREATE POLICY "courses_delete" ON public.courses FOR DELETE USING (auth.uid() = created_by);
+CREATE POLICY "Teachers can manage their own courses" ON public.courses
+    FOR ALL USING (auth.uid() = created_by);
+CREATE POLICY "Everyone can view published courses" ON public.courses
+    FOR SELECT USING (is_published = true);
 
 -- 4.5 ASSIGNMENTS POLICIES
-CREATE POLICY "assignments_select" ON public.assignments FOR SELECT USING (EXISTS (SELECT 1 FROM public.courses c WHERE c.id = assignments.course_id AND (c.is_published = true OR auth.uid() = c.created_by OR auth.uid() = ANY(c.students))));
-CREATE POLICY "assignments_insert" ON public.assignments FOR INSERT WITH CHECK (auth.uid() = created_by);
-CREATE POLICY "assignments_update" ON public.assignments FOR UPDATE USING (auth.uid() = created_by);
-CREATE POLICY "assignments_delete" ON public.assignments FOR DELETE USING (auth.uid() = created_by);
+CREATE POLICY "Teachers can manage assignments for their courses" ON public.assignments
+    FOR ALL USING (EXISTS (SELECT 1 FROM public.courses WHERE id = assignments.course_id AND created_by = auth.uid()));
+CREATE POLICY "Students can view assignments for their courses" ON public.assignments
+    FOR SELECT USING (EXISTS (SELECT 1 FROM public.courses WHERE id = assignments.course_id AND (auth.uid() = ANY(students) OR is_published = true)));
 
 -- 4.6 SUBMISSIONS POLICIES
-CREATE POLICY "submissions_select" ON public.submissions FOR SELECT USING (auth.uid() = student_id OR EXISTS (SELECT 1 FROM public.assignments a WHERE a.id = submissions.assignment_id AND a.created_by = auth.uid()));
-CREATE POLICY "submissions_insert" ON public.submissions FOR INSERT WITH CHECK (auth.uid() = student_id);
-CREATE POLICY "submissions_update" ON public.submissions FOR UPDATE USING (auth.uid() = student_id OR graded_by = auth.uid());
+CREATE POLICY "Students can manage their own submissions" ON public.submissions
+    FOR ALL USING (auth.uid() = student_id);
+CREATE POLICY "Teachers can view and grade submissions for their assignments" ON public.submissions
+    FOR ALL USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = submissions.assignment_id AND created_by = auth.uid()));
 
 -- 4.7 NOTIFICATIONS POLICIES
-CREATE POLICY "notifications_all" ON public.notifications FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own notifications" ON public.notifications
+    FOR ALL USING (auth.uid() = user_id);
 
 -- 4.8 NOTIFICATION SETTINGS POLICIES
-CREATE POLICY "settings_all" ON public.notification_settings FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own notification settings" ON public.notification_settings
+    FOR ALL USING (auth.uid() = user_id);
 
 -- 4.9 MESSAGES POLICIES
-CREATE POLICY "messages_select" ON public.messages FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
-CREATE POLICY "messages_insert" ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
+CREATE POLICY "Users can manage their own messages" ON public.messages
+    FOR ALL USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
 -- 4.10 ANNOUNCEMENTS POLICIES
-CREATE POLICY "announcements_select" ON public.announcements FOR SELECT USING (is_published = true OR auth.uid() = created_by OR EXISTS (SELECT 1 FROM public.courses c WHERE c.id = announcements.course_id AND auth.uid() = ANY(c.students)));
-CREATE POLICY "announcements_insert" ON public.announcements FOR INSERT WITH CHECK (auth.uid() = created_by);
-CREATE POLICY "announcements_update" ON public.announcements FOR UPDATE USING (auth.uid() = created_by);
-CREATE POLICY "announcements_delete" ON public.announcements FOR DELETE USING (auth.uid() = created_by);
+CREATE POLICY "Teachers can manage announcements" ON public.announcements
+    FOR ALL USING (auth.uid() = created_by);
+CREATE POLICY "Students can view published announcements" ON public.announcements
+    FOR SELECT USING (is_published = true);
 
 -- 4.11 DISCUSSION POSTS POLICIES
-CREATE POLICY "posts_select" ON public.discussion_posts FOR SELECT USING (EXISTS (SELECT 1 FROM public.courses c WHERE c.id = discussion_posts.course_id AND (c.is_published = true OR auth.uid() = c.created_by OR auth.uid() = ANY(c.students))));
-CREATE POLICY "posts_insert" ON public.discussion_posts FOR INSERT WITH CHECK (auth.uid() = author_id);
-CREATE POLICY "posts_update" ON public.discussion_posts FOR UPDATE USING (auth.uid() = author_id);
-CREATE POLICY "posts_delete" ON public.discussion_posts FOR DELETE USING (auth.uid() = author_id);
+CREATE POLICY "Users can manage their own discussion posts" ON public.discussion_posts
+    FOR ALL USING (auth.uid() = author_id);
+CREATE POLICY "Users can view all discussion posts in their courses" ON public.discussion_posts
+    FOR SELECT USING (EXISTS (SELECT 1 FROM public.courses WHERE id = discussion_posts.course_id AND (auth.uid() = ANY(students) OR auth.uid() = created_by OR is_published = true)));
 
 -- 4.12 SCHEDULED EVENTS POLICIES
-CREATE POLICY "events_all" ON public.scheduled_events FOR ALL USING (auth.uid() = created_by);
+CREATE POLICY "Users can manage their own scheduled events" ON public.scheduled_events
+    FOR ALL USING (auth.uid() = created_by);
 
 -- 4.13 AUTH LOGS POLICIES
-CREATE POLICY "logs_select" ON public.auth_logs FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "logs_insert" ON public.auth_logs FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can view their own auth logs" ON public.auth_logs
+    FOR SELECT USING (auth.uid() = user_id);
 
 -- ############################################################################
--- 5. PERMISSIONS
+-- 5. STORAGE BUCKETS SETUP
 -- ############################################################################
 
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+-- Note: Storage buckets must be created via the Supabase Dashboard or API,
+-- but policies can be defined here if the buckets exist.
+
+-- Storage Policies for 'materials'
+-- CREATE POLICY "Materials are publicly readable" ON storage.objects FOR SELECT USING (bucket_id = 'materials');
+-- CREATE POLICY "Teachers can upload materials" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'materials' AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'teacher');
+
+-- Storage Policies for 'submissions'
+-- CREATE POLICY "Students can upload their own submissions" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'submissions' AND auth.uid()::text = (storage.foldername(name))[1]);
+-- CREATE POLICY "Teachers can view all submissions" ON storage.objects FOR SELECT USING (bucket_id = 'submissions' AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'teacher');
+-- CREATE POLICY "Students can view their own submissions" ON storage.objects FOR SELECT USING (bucket_id = 'submissions' AND auth.uid()::text = (storage.foldername(name))[1]);

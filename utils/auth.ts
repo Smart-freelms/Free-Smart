@@ -33,6 +33,34 @@ export const getCurrentUser = async (): Promise<User | null> => {
   return user
 }
 
+export const login = async (email: string, name: string, role: "student" | "teacher"): Promise<User> => {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      data: { name, role }
+    }
+  })
+
+  if (error) throw error
+
+  // This is a simplified version for the demo. In a real app,
+  // we would wait for the OTP verification.
+  let user = await db.getUserByEmail(email)
+  if (!user) {
+    user = {
+      id: Date.now().toString(), // Will be updated by Supabase ID on session change
+      name,
+      email,
+      role,
+      createdAt: new Date(),
+      isActive: true,
+      password: '',
+    }
+  }
+
+  return user
+}
+
 export const signUp = async (
   email: string,
   password: string,
@@ -63,6 +91,19 @@ export const signUp = async (
   // Save to local IndexedDB for immediate availability/offline support
   // The Supabase 'profiles' table is handled by a database trigger (on_auth_user_created)
   await db.saveUser(user)
+
+  // Also save to Supabase profiles table for persistence
+  try {
+    await supabase.from('profiles').insert({
+      id: data.user.id,
+      name,
+      email,
+      role,
+      is_active: true
+    })
+  } catch (e) {
+    console.error("Failed to save profile to Supabase:", e)
+  }
 
   return user
 }

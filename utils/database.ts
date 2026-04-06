@@ -120,15 +120,11 @@ class QuizDatabase {
   async saveUser(user: User): Promise<void> {
     const transaction = this.db!.transaction(["users"], "readwrite")
     const store = transaction.objectStore("users")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(user)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(user)
 
     // Mirror to Supabase
     try {
-      const { error } = await supabase.from('profiles').upsert({
+      await supabase.from('profiles').upsert({
         id: user.id,
         name: user.name,
         email: user.email,
@@ -137,19 +133,15 @@ class QuizDatabase {
         bio: user.bio,
         profile_picture: user.profilePicture
       })
-      if (error) console.error("Supabase sync error (profiles):", error)
     } catch (e) {
-      console.error("Supabase sync exception (profiles):", e)
+      console.error("Supabase sync error:", e)
     }
   }
 
   async getUserByEmail(email: string): Promise<User | null> {
     // Try Supabase first
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('email', email).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getUserByEmail):", error)
-      }
+      const { data } = await supabase.from('profiles').select('*').eq('email', email).single()
       if (data) {
         const user: User = {
           id: data.id,
@@ -184,10 +176,7 @@ class QuizDatabase {
 
   async getUserById(id: string): Promise<User | null> {
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getUserById):", error)
-      }
+      const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
       if (data) {
         const user: User = {
           id: data.id,
@@ -219,8 +208,7 @@ class QuizDatabase {
 
   async getAllUsers(): Promise<User[]> {
     try {
-      const { data, error } = await supabase.from('profiles').select('*')
-      if (error) console.error("Supabase fetch error (getAllUsers):", error)
+      const { data } = await supabase.from('profiles').select('*')
       if (data) return data.map(d => ({
         id: d.id,
         name: d.name,
@@ -245,14 +233,10 @@ class QuizDatabase {
   async saveQuiz(quiz: Quiz): Promise<void> {
     const transaction = this.db!.transaction(["quizzes"], "readwrite")
     const store = transaction.objectStore("quizzes")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(quiz)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(quiz)
 
     try {
-      const { error } = await supabase.from('quizzes').upsert({
+      await supabase.from('quizzes').upsert({
         id: quiz.id,
         title: quiz.title,
         description: quiz.description,
@@ -268,9 +252,8 @@ class QuizDatabase {
         scheduled_expiry_date: quiz.scheduledExpiryDate,
         updated_at: new Date().toISOString()
       })
-      if (error) console.error("Supabase sync error (quizzes):", error)
     } catch (e) {
-       console.error("Supabase sync exception (quizzes):", e)
+       console.error("Supabase sync error:", e)
     }
   }
 
@@ -279,8 +262,7 @@ class QuizDatabase {
       let query = supabase.from('quizzes').select('*')
       if (createdBy) query = query.eq('created_by', createdBy)
 
-      const { data, error } = await query
-      if (error) console.error("Supabase fetch error (getQuizzes):", error)
+      const { data } = await query
       if (data) {
         const quizzes: Quiz[] = data.map(d => ({
           id: d.id,
@@ -344,10 +326,7 @@ class QuizDatabase {
 
   async getQuizById(id: string): Promise<Quiz | null> {
     try {
-      const { data, error } = await supabase.from('quizzes').select('*').eq('id', id).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getQuizById):", error)
-      }
+      const { data } = await supabase.from('quizzes').select('*').eq('id', id).single()
       if (data) return {
         id: data.id,
         title: data.title,
@@ -382,25 +361,18 @@ class QuizDatabase {
     store.delete(id)
 
     try {
-      const { error } = await supabase.from('quizzes').delete().eq('id', id)
-      if (error) console.error("Supabase delete error (quizzes):", error)
-    } catch (e) {
-      console.error("Supabase delete exception (quizzes):", e)
-    }
+      await supabase.from('quizzes').delete().eq('id', id)
+    } catch (e) {}
   }
 
   // Quiz attempt methods
   async saveAttempt(attempt: QuizAttempt): Promise<void> {
     const transaction = this.db!.transaction(["attempts"], "readwrite")
     const store = transaction.objectStore("attempts")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(attempt)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(attempt)
 
     try {
-      const { error } = await supabase.from('quiz_attempts').upsert({
+      await supabase.from('quiz_attempts').upsert({
         id: attempt.id,
         quiz_id: attempt.quizId,
         user_id: attempt.userId,
@@ -413,16 +385,12 @@ class QuizDatabase {
         time_spent: attempt.timeSpent,
         passed: attempt.passed
       })
-      if (error) console.error("Supabase sync error (quiz_attempts):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (quiz_attempts):", e)
-    }
+    } catch (e) {}
   }
 
   async getAttempts(userId: string): Promise<QuizAttempt[]> {
     try {
-      const { data, error } = await supabase.from('quiz_attempts').select('*').eq('user_id', userId)
-      if (error) console.error("Supabase fetch error (getAttempts):", error)
+      const { data } = await supabase.from('quiz_attempts').select('*').eq('user_id', userId)
       if (data) return data.map(d => ({
         id: d.id,
         quizId: d.quiz_id,
@@ -450,8 +418,7 @@ class QuizDatabase {
 
   async getQuizAttemptsByStudent(quizId: string, studentId: string): Promise<QuizAttempt[]> {
     try {
-      const { data, error } = await supabase.from('quiz_attempts').select('*').eq('quiz_id', quizId).eq('user_id', studentId)
-      if (error) console.error("Supabase fetch error (getQuizAttemptsByStudent):", error)
+      const { data } = await supabase.from('quiz_attempts').select('*').eq('quiz_id', quizId).eq('user_id', studentId)
       if (data) return data.map(d => ({
         id: d.id,
         quizId: d.quiz_id,
@@ -482,8 +449,7 @@ class QuizDatabase {
 
   async getQuizAttempts(quizId: string): Promise<QuizAttempt[]> {
     try {
-      const { data, error } = await supabase.from('quiz_attempts').select('*').eq('quiz_id', quizId)
-      if (error) console.error("Supabase fetch error (getQuizAttempts):", error)
+      const { data } = await supabase.from('quiz_attempts').select('*').eq('quiz_id', quizId)
       if (data) return data.map(d => ({
         id: d.id,
         quizId: d.quiz_id,
@@ -513,14 +479,10 @@ class QuizDatabase {
   async saveCourse(course: Course): Promise<void> {
     const transaction = this.db!.transaction(["courses"], "readwrite")
     const store = transaction.objectStore("courses")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(course)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(course)
 
     try {
-      const { error } = await supabase.from('courses').upsert({
+      await supabase.from('courses').upsert({
         id: course.id,
         title: course.title,
         description: course.description,
@@ -534,18 +496,14 @@ class QuizDatabase {
         scheduled_expiry_date: course.scheduledExpiryDate,
         updated_at: new Date().toISOString()
       })
-      if (error) console.error("Supabase sync error (courses):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (courses):", e)
-    }
+    } catch (e) {}
   }
 
   async getCourses(createdBy?: string): Promise<Course[]> {
     try {
       let query = supabase.from('courses').select('*')
       if (createdBy) query = query.eq('created_by', createdBy)
-      const { data, error } = await query
-      if (error) console.error("Supabase fetch error (getCourses):", error)
+      const { data } = await query
       if (data) return data.map(d => ({
         id: d.id,
         title: d.title,
@@ -582,10 +540,7 @@ class QuizDatabase {
 
   async getCourseById(id: string, userRole: "student" | "teacher" = "teacher"): Promise<Course | null> {
     try {
-      const { data, error } = await supabase.from('courses').select('*').eq('id', id).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getCourseById):", error)
-      }
+      const { data } = await supabase.from('courses').select('*').eq('id', id).single()
       if (data) {
         const course: Course = {
           id: data.id,
@@ -639,8 +594,7 @@ class QuizDatabase {
 
   async getAllCourses(): Promise<Course[]> {
     try {
-      const { data, error } = await supabase.from('courses').select('*')
-      if (error) console.error("Supabase fetch error (getAllCourses):", error)
+      const { data } = await supabase.from('courses').select('*')
       if (data) return data.map(d => ({
         id: d.id,
         title: d.title,
@@ -673,25 +627,18 @@ class QuizDatabase {
     store.delete(id)
 
     try {
-      const { error } = await supabase.from('courses').delete().eq('id', id)
-      if (error) console.error("Supabase delete error (courses):", error)
-    } catch (e) {
-      console.error("Supabase delete exception (courses):", e)
-    }
+      await supabase.from('courses').delete().eq('id', id)
+    } catch (e) {}
   }
 
   // Assignment methods
   async saveAssignment(assignment: Assignment): Promise<void> {
     const transaction = this.db!.transaction(["assignments"], "readwrite")
     const store = transaction.objectStore("assignments")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(assignment)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(assignment)
 
     try {
-      const { error } = await supabase.from('assignments').upsert({
+      await supabase.from('assignments').upsert({
         id: assignment.id,
         title: assignment.title,
         description: assignment.description,
@@ -703,18 +650,14 @@ class QuizDatabase {
         submission_types: assignment.submissionTypes,
         updated_at: new Date().toISOString()
       })
-      if (error) console.error("Supabase sync error (assignments):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (assignments):", e)
-    }
+    } catch (e) {}
   }
 
   async getAssignments(courseId?: string, userRole: "student" | "teacher" = "teacher"): Promise<Assignment[]> {
     try {
       let query = supabase.from('assignments').select('*')
       if (courseId) query = query.eq('course_id', courseId)
-      const { data, error } = await query
-      if (error) console.error("Supabase fetch error (getAssignments):", error)
+      const { data } = await query
       if (data) {
         const assignments: Assignment[] = data.map(d => ({
           id: d.id,
@@ -754,10 +697,7 @@ class QuizDatabase {
 
   async getAssignmentById(id: string): Promise<Assignment | null> {
     try {
-      const { data, error } = await supabase.from('assignments').select('*').eq('id', id).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getAssignmentById):", error)
-      }
+      const { data } = await supabase.from('assignments').select('*').eq('id', id).single()
       if (data) return {
         id: data.id,
         title: data.title,
@@ -788,25 +728,18 @@ class QuizDatabase {
     store.delete(id)
 
     try {
-      const { error } = await supabase.from('assignments').delete().eq('id', id)
-      if (error) console.error("Supabase delete error (assignments):", error)
-    } catch (e) {
-      console.error("Supabase delete exception (assignments):", e)
-    }
+      await supabase.from('assignments').delete().eq('id', id)
+    } catch (e) {}
   }
 
   // Submission methods
   async saveSubmission(submission: AssignmentSubmission): Promise<void> {
     const transaction = this.db!.transaction(["submissions"], "readwrite")
     const store = transaction.objectStore("submissions")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(submission)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(submission)
 
     try {
-      const { error } = await supabase.from('submissions').upsert({
+      await supabase.from('submissions').upsert({
         id: submission.id,
         assignment_id: submission.assignmentId,
         student_id: submission.studentId,
@@ -818,16 +751,12 @@ class QuizDatabase {
         graded_by: submission.gradedBy,
         graded_at: submission.gradedAt?.toISOString()
       })
-      if (error) console.error("Supabase sync error (submissions):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (submissions):", e)
-    }
+    } catch (e) {}
   }
 
   async getSubmissionsByAssignment(assignmentId: string): Promise<AssignmentSubmission[]> {
     try {
-      const { data, error } = await supabase.from('submissions').select('*').eq('assignment_id', assignmentId)
-      if (error) console.error("Supabase fetch error (getSubmissionsByAssignment):", error)
+      const { data } = await supabase.from('submissions').select('*').eq('assignment_id', assignmentId)
       if (data) return data.map(d => ({
         id: d.id,
         assignmentId: d.assignment_id,
@@ -854,10 +783,7 @@ class QuizDatabase {
 
   async getSubmissionByAssignmentAndStudent(assignmentId: string, studentId: string): Promise<AssignmentSubmission | null> {
     try {
-      const { data, error } = await supabase.from('submissions').select('*').eq('assignment_id', assignmentId).eq('student_id', studentId).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getSubmissionByAssignmentAndStudent):", error)
-      }
+      const { data } = await supabase.from('submissions').select('*').eq('assignment_id', assignmentId).eq('student_id', studentId).single()
       if (data) return {
         id: data.id,
         assignmentId: data.assignment_id,
@@ -890,14 +816,10 @@ class QuizDatabase {
   async saveNotification(notification: Notification): Promise<void> {
     const transaction = this.db!.transaction(["notifications"], "readwrite")
     const store = transaction.objectStore("notifications")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(notification)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(notification)
 
     try {
-      const { error } = await supabase.from('notifications').upsert({
+      await supabase.from('notifications').upsert({
         id: notification.id,
         user_id: notification.userId,
         title: notification.title,
@@ -906,16 +828,12 @@ class QuizDatabase {
         is_read: notification.isRead,
         created_at: notification.createdAt.toISOString()
       })
-      if (error) console.error("Supabase sync error (notifications):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (notifications):", e)
-    }
+    } catch (e) {}
   }
 
   async getNotifications(userId: string): Promise<Notification[]> {
     try {
-      const { data, error } = await supabase.from('notifications').select('*').eq('user_id', userId)
-      if (error) console.error("Supabase fetch error (getNotifications):", error)
+      const { data } = await supabase.from('notifications').select('*').eq('user_id', userId)
       if (data) return data.map(d => ({
         id: d.id,
         userId: d.user_id,
@@ -948,13 +866,7 @@ class QuizDatabase {
         if (notification) {
           notification.isRead = true
           store.put(notification)
-          try {
-            const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId)
-            if (error) console.error("Supabase update error (markNotificationAsRead):", error)
-          } catch (e) {
-            console.error("Supabase update exception (markNotificationAsRead):", e)
-          }
-          resolve()
+          supabase.from('notifications').update({ is_read: true }).eq('id', notificationId).then(() => resolve())
         } else {
           reject(new Error("Notification not found"))
         }
@@ -975,11 +887,8 @@ class QuizDatabase {
       }
     }
     try {
-      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId)
-      if (error) console.error("Supabase update error (markAllNotificationsAsRead):", error)
-    } catch (e) {
-      console.error("Supabase update exception (markAllNotificationsAsRead):", e)
-    }
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId)
+    } catch (e) {}
   }
 
   async deleteNotification(notificationId: string): Promise<void> {
@@ -987,20 +896,14 @@ class QuizDatabase {
     const store = transaction.objectStore("notifications")
     store.delete(notificationId)
     try {
-      const { error } = await supabase.from('notifications').delete().eq('id', notificationId)
-      if (error) console.error("Supabase delete error (deleteNotification):", error)
-    } catch (e) {
-      console.error("Supabase delete exception (deleteNotification):", e)
-    }
+      await supabase.from('notifications').delete().eq('id', notificationId)
+    } catch (e) {}
   }
 
   // Notification settings methods
   async getNotificationSettings(userId: string): Promise<NotificationSettings | null> {
     try {
-      const { data, error } = await supabase.from('notification_settings').select('*').eq('user_id', userId).single()
-      if (error && error.code !== 'PGRST116') {
-        console.error("Supabase fetch error (getNotificationSettings):", error)
-      }
+      const { data } = await supabase.from('notification_settings').select('*').eq('user_id', userId).single()
       if (data) return {
         userId: data.user_id,
         emailNotifications: data.email_notifications,
@@ -1029,14 +932,10 @@ class QuizDatabase {
 
     const transaction = this.db!.transaction(["notificationSettings"], "readwrite")
     const store = transaction.objectStore("notificationSettings")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(notificationSettings)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(notificationSettings)
 
     try {
-      const { error } = await supabase.from('notification_settings').upsert({
+      await supabase.from('notification_settings').upsert({
         user_id: userId,
         email_notifications: settings.emailNotifications,
         push_notifications: settings.pushNotifications,
@@ -1045,10 +944,7 @@ class QuizDatabase {
         message_notifications: settings.messageNotifications,
         announcement_notifications: settings.announcementNotifications
       })
-      if (error) console.error("Supabase sync error (notification_settings):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (notification_settings):", e)
-    }
+    } catch (e) {}
   }
 
   // Message methods
@@ -1062,14 +958,10 @@ class QuizDatabase {
 
     const transaction = this.db!.transaction(["messages"], "readwrite")
     const store = transaction.objectStore("messages")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(message)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(message)
 
     try {
-      const { error } = await supabase.from('messages').insert({
+      await supabase.from('messages').insert({
         id: message.id,
         sender_id: message.senderId,
         receiver_id: message.receiverId,
@@ -1078,16 +970,12 @@ class QuizDatabase {
         is_read: message.isRead,
         created_at: message.createdAt
       })
-      if (error) console.error("Supabase sync error (messages):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (messages):", e)
-    }
+    } catch (e) {}
   }
 
   async getMessages(userId: string): Promise<Message[]> {
     try {
-      const { data, error } = await supabase.from('messages').select('*').or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      if (error) console.error("Supabase fetch error (getMessages):", error)
+      const { data } = await supabase.from('messages').select('*').or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
       if (data) return data.map(d => ({
         id: d.id,
         senderId: d.sender_id,
@@ -1143,14 +1031,10 @@ class QuizDatabase {
 
     const transaction = this.db!.transaction(["announcements"], "readwrite")
     const store = transaction.objectStore("announcements")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(announcement)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(announcement)
 
     try {
-      const { error } = await supabase.from('announcements').insert({
+      await supabase.from('announcements').insert({
         id: announcement.id,
         title: announcement.title,
         content: announcement.content,
@@ -1159,18 +1043,14 @@ class QuizDatabase {
         is_published: announcement.isPublished,
         created_at: announcement.createdAt
       })
-      if (error) console.error("Supabase sync error (announcements):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (announcements):", e)
-    }
+    } catch (e) {}
   }
 
   async getAnnouncements(courseId?: string, userRole: "student" | "teacher" = "teacher"): Promise<Announcement[]> {
     try {
       let query = supabase.from('announcements').select('*')
       if (courseId) query = query.eq('course_id', courseId)
-      const { data, error } = await query
-      if (error) console.error("Supabase fetch error (getAnnouncements):", error)
+      const { data } = await query
       if (data) {
         const announcements: Announcement[] = data.map(d => ({
           id: d.id,
@@ -1223,18 +1103,12 @@ class QuizDatabase {
         if (announcement) {
           const updatedAnnouncement = { ...announcement, ...updates, updatedAt: new Date().toISOString() }
           store.put(updatedAnnouncement)
-          try {
-            const { error } = await supabase.from('announcements').update({
-              title: updates.title,
-              content: updates.content,
-              is_published: updates.isPublished,
-              updated_at: new Date().toISOString()
-            }).eq('id', announcementId)
-            if (error) console.error("Supabase update error (updateAnnouncement):", error)
-          } catch (e) {
-            console.error("Supabase update exception (updateAnnouncement):", e)
-          }
-          resolve()
+          supabase.from('announcements').update({
+            title: updates.title,
+            content: updates.content,
+            is_published: updates.isPublished,
+            updated_at: new Date().toISOString()
+          }).eq('id', announcementId).then(() => resolve())
         } else {
           reject(new Error("Announcement not found"))
         }
@@ -1248,11 +1122,8 @@ class QuizDatabase {
     const store = transaction.objectStore("announcements")
     store.delete(announcementId)
     try {
-      const { error } = await supabase.from('announcements').delete().eq('id', announcementId)
-      if (error) console.error("Supabase delete error (deleteAnnouncement):", error)
-    } catch (e) {
-      console.error("Supabase delete exception (deleteAnnouncement):", e)
-    }
+      await supabase.from('announcements').delete().eq('id', announcementId)
+    } catch (e) {}
   }
 
   // Discussion post methods
@@ -1266,14 +1137,10 @@ class QuizDatabase {
 
     const transaction = this.db!.transaction(["discussions"], "readwrite")
     const store = transaction.objectStore("discussions")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(post)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(post)
 
     try {
-      const { error } = await supabase.from('discussion_posts').upsert({
+      await supabase.from('discussion_posts').upsert({
         id: post.id,
         course_id: post.courseId,
         author_id: post.authorId,
@@ -1283,16 +1150,12 @@ class QuizDatabase {
         created_at: post.createdAt,
         updated_at: post.updatedAt
       })
-      if (error) console.error("Supabase sync error (discussion_posts):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (discussion_posts):", e)
-    }
+    } catch (e) {}
   }
 
   async getDiscussionPosts(courseId: string): Promise<any[]> {
     try {
-      const { data, error } = await supabase.from('discussion_posts').select('*').eq('course_id', courseId)
-      if (error) console.error("Supabase fetch error (getDiscussionPosts):", error)
+      const { data } = await supabase.from('discussion_posts').select('*').eq('course_id', courseId)
       if (data) return data.map(d => ({
         id: d.id,
         courseId: d.course_id,
@@ -1326,14 +1189,10 @@ class QuizDatabase {
 
     const transaction = this.db!.transaction(["scheduledEvents"], "readwrite")
     const store = transaction.objectStore("scheduledEvents")
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put(event)
-      request.onsuccess = () => resolve()
-      request.onerror = () => reject(request.error)
-    })
+    store.put(event)
 
     try {
-      const { error } = await supabase.from('scheduled_events').insert({
+      await supabase.from('scheduled_events').insert({
         id: event.id,
         title: event.title,
         description: event.description,
@@ -1345,16 +1204,12 @@ class QuizDatabase {
         created_by: event.createdBy,
         created_at: event.createdAt
       })
-      if (error) console.error("Supabase sync error (scheduled_events):", error)
-    } catch (e) {
-      console.error("Supabase sync exception (scheduled_events):", e)
-    }
+    } catch (e) {}
   }
 
   async getScheduledEvents(createdBy: string): Promise<ScheduledEvent[]> {
     try {
-      const { data, error } = await supabase.from('scheduled_events').select('*').eq('created_by', createdBy)
-      if (error) console.error("Supabase fetch error (getScheduledEvents):", error)
+      const { data } = await supabase.from('scheduled_events').select('*').eq('created_by', createdBy)
       if (data) return data.map(d => ({
         id: d.id,
         title: d.title,
@@ -1390,18 +1245,12 @@ class QuizDatabase {
         if (event) {
           const updatedEvent = { ...event, ...updates }
           store.put(updatedEvent)
-          try {
-            const { error } = await supabase.from('scheduled_events').update({
-              title: updates.title,
-              description: updates.description,
-              scheduled_date: updates.scheduledDate,
-              is_completed: updates.isCompleted
-            }).eq('id', eventId)
-            if (error) console.error("Supabase update error (updateScheduledEvent):", error)
-          } catch (e) {
-            console.error("Supabase update exception (updateScheduledEvent):", e)
-          }
-          resolve()
+          supabase.from('scheduled_events').update({
+            title: updates.title,
+            description: updates.description,
+            scheduled_date: updates.scheduledDate,
+            is_completed: updates.isCompleted
+          }).eq('id', eventId).then(() => resolve())
         } else {
           reject(new Error("Event not found"))
         }
@@ -1415,11 +1264,8 @@ class QuizDatabase {
     const store = transaction.objectStore("scheduledEvents")
     store.delete(eventId)
     try {
-      const { error } = await supabase.from('scheduled_events').delete().eq('id', eventId)
-      if (error) console.error("Supabase delete error (deleteScheduledEvent):", error)
-    } catch (e) {
-      console.error("Supabase delete exception (deleteScheduledEvent):", e)
-    }
+      await supabase.from('scheduled_events').delete().eq('id', eventId)
+    } catch (e) {}
   }
 
   // Auth log methods for security tracking
@@ -1431,8 +1277,7 @@ class QuizDatabase {
 
   async getAuthLogs(userId: string): Promise<AuthLog[]> {
     try {
-      const { data, error } = await supabase.from('auth_logs').select('*').eq('user_id', userId)
-      if (error) console.error("Supabase fetch error (getAuthLogs):", error)
+      const { data } = await supabase.from('auth_logs').select('*').eq('user_id', userId)
       if (data) return data.map(d => ({
         id: d.id,
         userId: d.user_id,

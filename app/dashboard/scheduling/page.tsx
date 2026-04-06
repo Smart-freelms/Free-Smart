@@ -10,5 +10,9 @@ export default function SchedulingPage() {
 
   if (!user) return null
 
-  return <SchedulingSystem user={user} onBack={() => router.push('/dashboard')} />
+  return (
+    <div>
+      <SchedulingSystem user={user} onBack={() => router.push('/dashboard')} />
+    </div>
+  )
 }
