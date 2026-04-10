@@ -11,17 +11,15 @@ import {
   BarChart3,
   BookOpen,
   FileText,
-  Award,
   Megaphone,
-  Mail,
   Calendar,
   Bell,
+  Trash2,
 } from "lucide-react"
 import { db } from "../utils/database"
 import { StatCard, StatCardsGrid } from "./dashboard/StatCards"
 import { QuickAction, QuickActionsContainer } from "./dashboard/QuickActions"
 import { WelcomeSection } from "./dashboard/WelcomeSection"
-import { DashboardHeader } from "./dashboard/DashboardHeader"
 
 interface TeacherDashboardProps {
   user: User
