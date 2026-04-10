@@ -14,6 +14,11 @@ import {
   Trash2,
   CheckSquare,
   Square,
+  Video,
+  ImageIcon,
+  Link,
+  FolderOpen,
+  FileText,
 } from "lucide-react"
 import { db } from "../utils/database"
 import { MaterialForm } from "./courses/MaterialForm"

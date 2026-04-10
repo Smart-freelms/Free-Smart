@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect } from "react"
 import { User, Quiz, QuizAttempt } from "../types"
-import { LogOut, Play, Trophy, Clock, Target, TrendingUp, Star, Book, BookOpen, FileText, Mail, Megaphone, Calendar, Bell } from "lucide-react"
+import { Play, Trophy, Clock, Target, TrendingUp, Star, Book, BookOpen, FileText, Mail, Megaphone, Bell } from "lucide-react"
 import { db } from "../utils/database"
 import { StatCard, StatCardsGrid } from "./dashboard/StatCards"
 import { QuickAction, QuickActionsContainer } from "./dashboard/QuickActions"
 import { WelcomeSection } from "./dashboard/WelcomeSection"
-import { DashboardHeader } from "./dashboard/DashboardHeader"
 
 interface StudentDashboardProps {
   user: User

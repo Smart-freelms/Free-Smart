@@ -55,7 +55,11 @@ export interface QuizAttempt {
 
 export interface QuizResult {
   attempt: QuizAttempt
-  quiz: Quiz
+  quiz?: Quiz
+  earnedPoints?: number
+  totalPoints?: number
+  percentage?: number
+  passed?: boolean
   detailedResults: {
     questionId: string
     question: string
@@ -64,6 +68,7 @@ export interface QuizResult {
     isCorrect: boolean
     points: number
     maxPoints: number
+    explanation?: string
   }[]
 }
 
