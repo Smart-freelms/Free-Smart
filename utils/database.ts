@@ -141,7 +141,7 @@ class QuizDatabase {
   async getUserByEmail(email: string): Promise<User | null> {
     // Try Supabase first
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('email', email).single()
+      const { data } = await supabase.from('profiles').select('*').eq('email', email).maybeSingle()
       if (data) {
         const user: User = {
           id: data.id,
@@ -176,7 +176,7 @@ class QuizDatabase {
 
   async getUserById(id: string): Promise<User | null> {
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
+      const { data } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle()
       if (data) {
         const user: User = {
           id: data.id,
@@ -326,7 +326,7 @@ class QuizDatabase {
 
   async getQuizById(id: string): Promise<Quiz | null> {
     try {
-      const { data } = await supabase.from('quizzes').select('*').eq('id', id).single()
+      const { data } = await supabase.from('quizzes').select('*').eq('id', id).maybeSingle()
       if (data) return {
         id: data.id,
         title: data.title,
@@ -540,7 +540,7 @@ class QuizDatabase {
 
   async getCourseById(id: string, userRole: "student" | "teacher" = "teacher"): Promise<Course | null> {
     try {
-      const { data } = await supabase.from('courses').select('*').eq('id', id).single()
+      const { data } = await supabase.from('courses').select('*').eq('id', id).maybeSingle()
       if (data) {
         const course: Course = {
           id: data.id,
@@ -697,7 +697,7 @@ class QuizDatabase {
 
   async getAssignmentById(id: string): Promise<Assignment | null> {
     try {
-      const { data } = await supabase.from('assignments').select('*').eq('id', id).single()
+      const { data } = await supabase.from('assignments').select('*').eq('id', id).maybeSingle()
       if (data) return {
         id: data.id,
         title: data.title,
@@ -783,7 +783,7 @@ class QuizDatabase {
 
   async getSubmissionByAssignmentAndStudent(assignmentId: string, studentId: string): Promise<AssignmentSubmission | null> {
     try {
-      const { data } = await supabase.from('submissions').select('*').eq('assignment_id', assignmentId).eq('student_id', studentId).single()
+      const { data } = await supabase.from('submissions').select('*').eq('assignment_id', assignmentId).eq('student_id', studentId).maybeSingle()
       if (data) return {
         id: data.id,
         assignmentId: data.assignment_id,
@@ -903,7 +903,7 @@ class QuizDatabase {
   // Notification settings methods
   async getNotificationSettings(userId: string): Promise<NotificationSettings | null> {
     try {
-      const { data } = await supabase.from('notification_settings').select('*').eq('user_id', userId).single()
+      const { data } = await supabase.from('notification_settings').select('*').eq('user_id', userId).maybeSingle()
       if (data) return {
         userId: data.user_id,
         emailNotifications: data.email_notifications,

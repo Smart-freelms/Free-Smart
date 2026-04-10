@@ -13,7 +13,7 @@ export const getCurrentUser = async (): Promise<User | null> => {
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
-      .single()
+      .maybeSingle()
 
     if (profile) {
       const newUser: User = {
@@ -124,7 +124,7 @@ export const signIn = async (email: string, password: string): Promise<User> => 
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
-      .single()
+      .maybeSingle()
 
     user = {
       id: data.user.id,
