@@ -9,10 +9,35 @@ interface QuizTakerProps {
   onComplete: () => void;
 }
 
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) => {
   const [isAccessDenied, setIsAccessDenied] = useState(false);
   const [accessError, setAccessError] = useState("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  const questions = React.useMemo(() => {
+    return quiz.shuffleQuestions ? shuffleArray(quiz.questions) : quiz.questions;
+  }, [quiz.id, quiz.questions, quiz.shuffleQuestions]);
+
+  const shuffledOptionsMap = React.useMemo(() => {
+    const map: Record<string, string[]> = {};
+    questions.forEach(q => {
+      if (q.options && quiz.shuffleOptions) {
+        map[q.id] = shuffleArray(q.options);
+      } else if (q.options) {
+        map[q.id] = q.options;
+      }
+    });
+    return map;
+  }, [questions, quiz.shuffleOptions]);
 
   useEffect(() => {
     const now = new Date();
@@ -28,20 +53,65 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   }, [quiz, user]);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [startTime] = useState(new Date());
+  const [questionTimeRemaining, setQuestionTimeRemaining] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState(new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<QuizResult | null>(null);
 
-  const questions = quiz.shuffleQuestions
-    ? [...quiz.questions].sort(() => Math.random() - 0.5)
-    : quiz.questions;
+  useEffect(() => {
+    loadSession();
+  }, [quiz.id, user.id]);
+
+  const loadSession = async () => {
+    try {
+      const session = await db.getQuizSession(quiz.id, user.id);
+      if (session) {
+        setAnswers(session.answers || {});
+        setCurrentQuestionIndex(session.currentIndex || 0);
+        setTimeRemaining(session.timeRemaining);
+        setStartTime(new Date(session.startTime));
+      }
+    } catch (error) {
+      console.error('Failed to load quiz session:', error);
+    }
+  };
+
+  const saveSession = async (updates: {
+    answers?: Record<string, string | string[]>;
+    currentIndex?: number;
+    timeRemaining?: number | null;
+  }) => {
+    try {
+      const session = {
+        id: `${quiz.id}-${user.id}`,
+        quizId: quiz.id,
+        userId: user.id,
+        answers: updates.answers || answers,
+        currentIndex: updates.currentIndex !== undefined ? updates.currentIndex : currentQuestionIndex,
+        timeRemaining: updates.timeRemaining !== undefined ? updates.timeRemaining : timeRemaining,
+        startTime: startTime.toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await db.saveQuizSession(session);
+    } catch (error) {
+      console.error('Failed to save quiz session:', error);
+    }
+  };
 
   useEffect(() => {
     if (quiz.timeLimit) {
       setTimeRemaining(quiz.timeLimit * 60);
     }
-  }, [quiz.timeLimit]);
+  }, [quiz.id, quiz.timeLimit]);
+
+  useEffect(() => {
+    if (currentQuestion?.timeLimit) {
+      setQuestionTimeRemaining(currentQuestion.timeLimit);
+    } else {
+      setQuestionTimeRemaining(null);
+    }
+  }, [currentQuestionIndex, questions]);
 
   useEffect(() => {
     if (timeRemaining === null) return;
@@ -60,6 +130,29 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     return () => clearInterval(timer);
   }, [timeRemaining]);
 
+  useEffect(() => {
+    if (questionTimeRemaining === null) return;
+
+    const timer = setInterval(() => {
+      setQuestionTimeRemaining(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          if (currentQuestionIndex === questions.length - 1) {
+            handleSubmit();
+          } else {
+            const newIndex = currentQuestionIndex + 1;
+            setCurrentQuestionIndex(newIndex);
+            saveSession({ currentIndex: newIndex });
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [questionTimeRemaining, currentQuestionIndex, questions.length]);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -69,10 +162,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   const currentQuestion = questions[currentQuestionIndex];
 
   const handleAnswerChange = (value: string | string[]) => {
-    setAnswers({
+    const newAnswers = {
       ...answers,
       [currentQuestion.id]: value
-    });
+    };
+    setAnswers(newAnswers);
+    saveSession({ answers: newAnswers });
   };
 
   const calculateScore = () => {
@@ -144,6 +239,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
 
     try {
       await db.saveAttempt(attempt);
+      await db.deleteQuizSession(quiz.id, user.id);
       setResults({ attempt, ...score });
       setShowResults(true);
     } catch (error) {
@@ -154,8 +250,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   };
 
   const getShuffledOptions = (question: Question) => {
-    if (!question.options || !quiz.shuffleOptions) return question.options;
-    return [...question.options].sort(() => Math.random() - 0.5);
+    return shuffledOptionsMap[question.id] || question.options;
   };
 
   if (showResults && results) {
@@ -374,14 +469,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
               </div>
             </div>
 
-            {timeRemaining !== null && (
-              <div className="flex items-center text-orange-600">
-                <Clock className="w-5 h-5 mr-2" />
-                <span className="font-mono text-lg">
-                  {formatTime(timeRemaining)}
-                </span>
-              </div>
-            )}
+            <div className="flex flex-col items-end">
+              {timeRemaining !== null && (
+                <div className="flex items-center text-orange-600">
+                  <Clock className="w-5 h-5 mr-2" />
+                  <span className="font-mono text-lg">
+                    {formatTime(timeRemaining)}
+                  </span>
+                </div>
+              )}
+              {questionTimeRemaining !== null && (
+                <div className="flex items-center text-blue-600 text-sm mt-1">
+                  <Clock className="w-4 h-4 mr-2" />
+                  <span className="font-mono">
+                    Question: {formatTime(questionTimeRemaining)}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -427,7 +532,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
         {/* Navigation */}
         <div className="flex items-center justify-between">
           <button
-            onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
+            onClick={() => {
+              const newIndex = Math.max(0, currentQuestionIndex - 1);
+              setCurrentQuestionIndex(newIndex);
+              saveSession({ currentIndex: newIndex });
+            }}
             disabled={currentQuestionIndex === 0}
             className="flex items-center px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -446,7 +555,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
               </button>
             ) : (
               <button
-                onClick={() => setCurrentQuestionIndex(Math.min(questions.length - 1, currentQuestionIndex + 1))}
+                onClick={() => {
+                  const newIndex = Math.min(questions.length - 1, currentQuestionIndex + 1);
+                  setCurrentQuestionIndex(newIndex);
+                  saveSession({ currentIndex: newIndex });
+                }}
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Next
@@ -463,7 +576,10 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
             {questions.map((_, index) => (
               <button
                 key={index}
-                onClick={() => setCurrentQuestionIndex(index)}
+                onClick={() => {
+                  setCurrentQuestionIndex(index);
+                  saveSession({ currentIndex: index });
+                }}
                 className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                   index === currentQuestionIndex
                     ? 'bg-blue-600 text-white'
