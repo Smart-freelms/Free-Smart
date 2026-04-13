@@ -1536,6 +1536,7 @@ class QuizDatabase {
 
   // Quiz session persistence methods
   async saveQuizSession(session: any): Promise<void> {
+    await this.init()
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(["quizSessions"], "readwrite")
       const store = transaction.objectStore("quizSessions")
@@ -1543,6 +1544,35 @@ class QuizDatabase {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+  }
+  
+  async getQuizSession(quizId: string, userId: string): Promise<any | null> {
+    await this.init()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["quizSessions"], "readonly")
+      const store = transaction.objectStore("quizSessions")
+      const index = store.index("userId")
+      const request = index.getAll(userId)
+      request.onsuccess = () => {
+        const sessions = request.result
+        const session = sessions.find((s: any) => s.quizId === quizId)
+        resolve(session || null)
+      }
+      request.onerror = () => reject(request.error)
+    })
+  }
+  
+  async deleteQuizSession(quizId: string, userId: string): Promise<void> {
+    const session = await this.getQuizSession(quizId, userId)
+    if (session) {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction(["quizSessions"], "readwrite")
+        const store = transaction.objectStore("quizSessions")
+        const request = store.delete(session.id)
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    }
   }
 
   async getQuizSession(quizId: string, userId: string): Promise<any | null> {
