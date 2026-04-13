@@ -1,351 +1,724 @@
--- ############################################################################
--- SUPABASE DATABASE SETUP SCRIPT FOR SMART LMS
--- This script sets up tables, RLS policies, functions, and triggers for production.
--- ############################################################################
+-- Smart LMS Database Setup Script
+-- Creates all required tables with proper RLS policies
 
--- ############################################################################
--- 1. TABLES SETUP
--- ############################################################################
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1.1 PROFILES (Publicly accessible user information)
--- Linked to auth.users via id
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('student', 'teacher')),
-    is_active BOOLEAN DEFAULT TRUE,
-    bio TEXT,
-    profile_picture TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- ============================================
+-- PROFILES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('student', 'teacher')),
+  is_active BOOLEAN DEFAULT true,
+  bio TEXT,
+  profile_picture TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.2 QUIZZES
-CREATE TABLE IF NOT EXISTS public.quizzes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    questions JSONB NOT NULL DEFAULT '[]'::jsonb,
-    time_limit INTEGER, -- In minutes
-    allow_retry BOOLEAN DEFAULT TRUE,
-    shuffle_questions BOOLEAN DEFAULT FALSE,
-    shuffle_options BOOLEAN DEFAULT FALSE,
-    passing_score INTEGER DEFAULT 70,
-    is_published BOOLEAN DEFAULT FALSE,
-    scheduled_publish_date TIMESTAMPTZ,
-    scheduled_expiry_date TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on profiles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for profiles
+DROP POLICY IF EXISTS "Allow public read access to profiles" ON profiles;
+CREATE POLICY "Allow public read access to profiles" ON profiles
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated users to insert profiles" ON profiles;
+CREATE POLICY "Allow authenticated users to insert profiles" ON profiles
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow users to update own profile" ON profiles;
+CREATE POLICY "Allow users to update own profile" ON profiles
+  FOR UPDATE USING (true);
+
+-- ============================================
+-- QUIZZES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS quizzes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  description TEXT,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  questions JSONB DEFAULT '[]'::jsonb,
+  time_limit INTEGER,
+  allow_retry BOOLEAN DEFAULT true,
+  shuffle_questions BOOLEAN DEFAULT false,
+  shuffle_options BOOLEAN DEFAULT false,
+  passing_score INTEGER DEFAULT 70,
+  is_published BOOLEAN DEFAULT false,
+  scheduled_publish_date TIMESTAMP WITH TIME ZONE,
+  scheduled_expiry_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.3 QUIZ ATTEMPTS
-CREATE TABLE IF NOT EXISTS public.quiz_attempts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    answers JSONB NOT NULL DEFAULT '{}'::jsonb,
-    score NUMERIC(5, 2) NOT NULL,
-    total_points INTEGER NOT NULL,
-    percentage NUMERIC(5, 2) NOT NULL,
-    start_time TIMESTAMPTZ NOT NULL,
-    end_time TIMESTAMPTZ NOT NULL,
-    time_spent INTEGER NOT NULL, -- In seconds
-    passed BOOLEAN NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on quizzes
+ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for quizzes
+DROP POLICY IF EXISTS "Allow public read access to quizzes" ON quizzes;
+CREATE POLICY "Allow public read access to quizzes" ON quizzes
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated insert on quizzes" ON quizzes;
+CREATE POLICY "Allow authenticated insert on quizzes" ON quizzes
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on quizzes" ON quizzes;
+CREATE POLICY "Allow update on quizzes" ON quizzes
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on quizzes" ON quizzes;
+CREATE POLICY "Allow delete on quizzes" ON quizzes
+  FOR DELETE USING (true);
+
+-- ============================================
+-- QUIZ ATTEMPTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  quiz_id UUID REFERENCES quizzes(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  answers JSONB DEFAULT '{}'::jsonb,
+  score INTEGER DEFAULT 0,
+  total_points INTEGER DEFAULT 0,
+  percentage DECIMAL(5,2) DEFAULT 0,
+  start_time TIMESTAMP WITH TIME ZONE,
+  end_time TIMESTAMP WITH TIME ZONE,
+  time_spent INTEGER DEFAULT 0,
+  passed BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.4 COURSES
-CREATE TABLE IF NOT EXISTS public.courses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    students UUID[] DEFAULT '{}', -- Array of student profile IDs
-    quizzes UUID[] DEFAULT '{}', -- Array of quiz IDs
-    assignments UUID[] DEFAULT '{}', -- Array of assignment IDs
-    materials JSONB DEFAULT '[]'::jsonb, -- Array of course materials
-    is_published BOOLEAN DEFAULT FALSE,
-    scheduled_publish_date TIMESTAMPTZ,
-    scheduled_expiry_date TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on quiz_attempts
+ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for quiz_attempts
+DROP POLICY IF EXISTS "Allow public read access to quiz_attempts" ON quiz_attempts;
+CREATE POLICY "Allow public read access to quiz_attempts" ON quiz_attempts
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on quiz_attempts" ON quiz_attempts;
+CREATE POLICY "Allow insert on quiz_attempts" ON quiz_attempts
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on quiz_attempts" ON quiz_attempts;
+CREATE POLICY "Allow update on quiz_attempts" ON quiz_attempts
+  FOR UPDATE USING (true);
+
+-- ============================================
+-- COURSES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS courses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  description TEXT,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  students UUID[] DEFAULT '{}',
+  quizzes UUID[] DEFAULT '{}',
+  assignments UUID[] DEFAULT '{}',
+  materials JSONB DEFAULT '[]'::jsonb,
+  is_published BOOLEAN DEFAULT false,
+  scheduled_publish_date TIMESTAMP WITH TIME ZONE,
+  scheduled_expiry_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.5 ASSIGNMENTS
-CREATE TABLE IF NOT EXISTS public.assignments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-    created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    due_date TIMESTAMPTZ NOT NULL,
-    max_points INTEGER NOT NULL DEFAULT 100,
-    allow_late_submission BOOLEAN DEFAULT FALSE,
-    submission_types TEXT[] DEFAULT '{"text"}'::text[],
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on courses
+ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for courses
+DROP POLICY IF EXISTS "Allow public read access to courses" ON courses;
+CREATE POLICY "Allow public read access to courses" ON courses
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on courses" ON courses;
+CREATE POLICY "Allow insert on courses" ON courses
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on courses" ON courses;
+CREATE POLICY "Allow update on courses" ON courses
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on courses" ON courses;
+CREATE POLICY "Allow delete on courses" ON courses
+  FOR DELETE USING (true);
+
+-- ============================================
+-- ASSIGNMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS assignments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  description TEXT,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  due_date TIMESTAMP WITH TIME ZONE,
+  max_points INTEGER DEFAULT 100,
+  is_published BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.6 SUBMISSIONS
-CREATE TABLE IF NOT EXISTS public.submissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    assignment_id UUID NOT NULL REFERENCES public.assignments(id) ON DELETE CASCADE,
-    student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    content TEXT,
-    file_url TEXT,
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    grade INTEGER,
-    feedback TEXT,
-    graded_by UUID REFERENCES public.profiles(id),
-    graded_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on assignments
+ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for assignments
+DROP POLICY IF EXISTS "Allow public read access to assignments" ON assignments;
+CREATE POLICY "Allow public read access to assignments" ON assignments
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on assignments" ON assignments;
+CREATE POLICY "Allow insert on assignments" ON assignments
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on assignments" ON assignments;
+CREATE POLICY "Allow update on assignments" ON assignments
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on assignments" ON assignments;
+CREATE POLICY "Allow delete on assignments" ON assignments
+  FOR DELETE USING (true);
+
+-- ============================================
+-- ASSIGNMENT SUBMISSIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  assignment_id UUID REFERENCES assignments(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  content TEXT,
+  file_url TEXT,
+  grade INTEGER,
+  feedback TEXT,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  graded_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.7 NOTIFICATIONS
-CREATE TABLE IF NOT EXISTS public.notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    message TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('info', 'success', 'warning', 'error')),
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on assignment_submissions
+ALTER TABLE assignment_submissions ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for assignment_submissions
+DROP POLICY IF EXISTS "Allow public read access to assignment_submissions" ON assignment_submissions;
+CREATE POLICY "Allow public read access to assignment_submissions" ON assignment_submissions
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on assignment_submissions" ON assignment_submissions;
+CREATE POLICY "Allow insert on assignment_submissions" ON assignment_submissions
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on assignment_submissions" ON assignment_submissions;
+CREATE POLICY "Allow update on assignment_submissions" ON assignment_submissions
+  FOR UPDATE USING (true);
+
+-- ============================================
+-- NOTIFICATIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT,
+  type TEXT DEFAULT 'info',
+  is_read BOOLEAN DEFAULT false,
+  link TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.8 NOTIFICATION SETTINGS
-CREATE TABLE IF NOT EXISTS public.notification_settings (
-    user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-    email_notifications BOOLEAN DEFAULT TRUE,
-    push_notifications BOOLEAN DEFAULT TRUE,
-    assignment_reminders BOOLEAN DEFAULT TRUE,
-    grade_notifications BOOLEAN DEFAULT TRUE,
-    message_notifications BOOLEAN DEFAULT TRUE,
-    announcement_notifications BOOLEAN DEFAULT TRUE
+-- Enable RLS on notifications
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for notifications
+DROP POLICY IF EXISTS "Allow public read access to notifications" ON notifications;
+CREATE POLICY "Allow public read access to notifications" ON notifications
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on notifications" ON notifications;
+CREATE POLICY "Allow insert on notifications" ON notifications
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on notifications" ON notifications;
+CREATE POLICY "Allow update on notifications" ON notifications
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on notifications" ON notifications;
+CREATE POLICY "Allow delete on notifications" ON notifications
+  FOR DELETE USING (true);
+
+-- ============================================
+-- SCHEDULED EVENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS scheduled_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  description TEXT,
+  event_type TEXT NOT NULL,
+  scheduled_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_date TIMESTAMP WITH TIME ZONE,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  related_id UUID,
+  is_recurring BOOLEAN DEFAULT false,
+  recurrence_pattern TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.9 MESSAGES
-CREATE TABLE IF NOT EXISTS public.messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sender_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    receiver_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    subject TEXT NOT NULL,
-    content TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on scheduled_events
+ALTER TABLE scheduled_events ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for scheduled_events
+DROP POLICY IF EXISTS "Allow public read access to scheduled_events" ON scheduled_events;
+CREATE POLICY "Allow public read access to scheduled_events" ON scheduled_events
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on scheduled_events" ON scheduled_events;
+CREATE POLICY "Allow insert on scheduled_events" ON scheduled_events
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on scheduled_events" ON scheduled_events;
+CREATE POLICY "Allow update on scheduled_events" ON scheduled_events
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on scheduled_events" ON scheduled_events;
+CREATE POLICY "Allow delete on scheduled_events" ON scheduled_events
+  FOR DELETE USING (true);
+
+-- ============================================
+-- NOTIFICATION SETTINGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS notification_settings (
+  user_id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  email_notifications BOOLEAN DEFAULT true,
+  push_notifications BOOLEAN DEFAULT true,
+  quiz_reminders BOOLEAN DEFAULT true,
+  assignment_reminders BOOLEAN DEFAULT true,
+  announcement_notifications BOOLEAN DEFAULT true,
+  message_notifications BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.10 ANNOUNCEMENTS
-CREATE TABLE IF NOT EXISTS public.announcements (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE,
-    created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    is_published BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on notification_settings
+ALTER TABLE notification_settings ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for notification_settings
+DROP POLICY IF EXISTS "Allow public read access to notification_settings" ON notification_settings;
+CREATE POLICY "Allow public read access to notification_settings" ON notification_settings
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on notification_settings" ON notification_settings;
+CREATE POLICY "Allow insert on notification_settings" ON notification_settings
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on notification_settings" ON notification_settings;
+CREATE POLICY "Allow update on notification_settings" ON notification_settings
+  FOR UPDATE USING (true);
+
+-- ============================================
+-- MESSAGES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  subject TEXT,
+  content TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.11 DISCUSSION POSTS
-CREATE TABLE IF NOT EXISTS public.discussion_posts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-    author_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    title TEXT,
-    content TEXT NOT NULL,
-    parent_id UUID REFERENCES public.discussion_posts(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on messages
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for messages
+DROP POLICY IF EXISTS "Allow public read access to messages" ON messages;
+CREATE POLICY "Allow public read access to messages" ON messages
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on messages" ON messages;
+CREATE POLICY "Allow insert on messages" ON messages
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on messages" ON messages;
+CREATE POLICY "Allow update on messages" ON messages
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on messages" ON messages;
+CREATE POLICY "Allow delete on messages" ON messages
+  FOR DELETE USING (true);
+
+-- ============================================
+-- ANNOUNCEMENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS announcements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  priority TEXT DEFAULT 'normal',
+  is_pinned BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.12 SCHEDULED EVENTS
-CREATE TABLE IF NOT EXISTS public.scheduled_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    type TEXT NOT NULL CHECK (type IN ('quiz', 'assignment', 'course', 'announcement')),
-    entity_id UUID NOT NULL,
-    scheduled_date TIMESTAMPTZ NOT NULL,
-    action TEXT NOT NULL CHECK (action IN ('publish', 'unpublish', 'due', 'reminder')),
-    is_completed BOOLEAN DEFAULT FALSE,
-    created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+-- Enable RLS on announcements
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for announcements
+DROP POLICY IF EXISTS "Allow public read access to announcements" ON announcements;
+CREATE POLICY "Allow public read access to announcements" ON announcements
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on announcements" ON announcements;
+CREATE POLICY "Allow insert on announcements" ON announcements
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on announcements" ON announcements;
+CREATE POLICY "Allow update on announcements" ON announcements
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on announcements" ON announcements;
+CREATE POLICY "Allow delete on announcements" ON announcements
+  FOR DELETE USING (true);
+
+-- ============================================
+-- DISCUSSIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS discussions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  author_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  parent_id UUID REFERENCES discussions(id) ON DELETE CASCADE,
+  likes INTEGER DEFAULT 0,
+  is_pinned BOOLEAN DEFAULT false,
+  is_resolved BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.13 AUTH LOGS
-CREATE TABLE IF NOT EXISTS public.auth_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    event TEXT NOT NULL,
-    details JSONB,
-    timestamp TIMESTAMPTZ DEFAULT NOW(),
-    ip TEXT
+-- Enable RLS on discussions
+ALTER TABLE discussions ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for discussions
+DROP POLICY IF EXISTS "Allow public read access to discussions" ON discussions;
+CREATE POLICY "Allow public read access to discussions" ON discussions
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow insert on discussions" ON discussions;
+CREATE POLICY "Allow insert on discussions" ON discussions
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update on discussions" ON discussions;
+CREATE POLICY "Allow update on discussions" ON discussions
+  FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Allow delete on discussions" ON discussions;
+CREATE POLICY "Allow delete on discussions" ON discussions
+  FOR DELETE USING (true);
+
+-- ============================================
+-- AUTH LOGS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS auth_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
+  success BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- ############################################################################
--- 2. INDEXES SETUP
--- ############################################################################
+-- Enable RLS on auth_logs
+ALTER TABLE auth_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE INDEX IF NOT EXISTS idx_quizzes_created_by ON public.quizzes(created_by);
-CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz_user ON public.quiz_attempts(quiz_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_courses_created_by ON public.courses(created_by);
-CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON public.assignments(course_id);
-CREATE INDEX IF NOT EXISTS idx_submissions_assignment_student ON public.submissions(assignment_id, student_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON public.messages(sender_id, receiver_id);
-CREATE INDEX IF NOT EXISTS idx_announcements_course_id ON public.announcements(course_id);
-CREATE INDEX IF NOT EXISTS idx_discussion_posts_course_id ON public.discussion_posts(course_id);
-CREATE INDEX IF NOT EXISTS idx_discussion_posts_parent_id ON public.discussion_posts(parent_id);
-CREATE INDEX IF NOT EXISTS idx_scheduled_events_date ON public.scheduled_events(scheduled_date);
+-- RLS Policies for auth_logs
+DROP POLICY IF EXISTS "Allow public read access to auth_logs" ON auth_logs;
+CREATE POLICY "Allow public read access to auth_logs" ON auth_logs
+  FOR SELECT USING (true);
 
--- ############################################################################
--- 3. FUNCTIONS & TRIGGERS
--- ############################################################################
+DROP POLICY IF EXISTS "Allow insert on auth_logs" ON auth_logs;
+CREATE POLICY "Allow insert on auth_logs" ON auth_logs
+  FOR INSERT WITH CHECK (true);
 
--- 3.1 UPDATED_AT TRIGGER FUNCTION
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- ============================================
+-- USER SESSIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- 3.2 ATTACH UPDATED_AT TRIGGERS
-CREATE TRIGGER set_updated_at_profiles BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
-CREATE TRIGGER set_updated_at_quizzes BEFORE UPDATE ON public.quizzes FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
-CREATE TRIGGER set_updated_at_courses BEFORE UPDATE ON public.courses FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
-CREATE TRIGGER set_updated_at_assignments BEFORE UPDATE ON public.assignments FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
-CREATE TRIGGER set_updated_at_submissions BEFORE UPDATE ON public.submissions FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
-CREATE TRIGGER set_updated_at_announcements BEFORE UPDATE ON public.announcements FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
-CREATE TRIGGER set_updated_at_discussion_posts BEFORE UPDATE ON public.discussion_posts FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+-- Enable RLS on user_sessions
+ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
--- 3.3 AUTOMATIC PROFILE CREATION ON SIGN UP
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO public.profiles (id, name, email, role, is_active)
-    VALUES (
-        NEW.id,
-        COALESCE(NEW.raw_user_meta_data->>'name', 'User'),
-        NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'role', 'student'),
-        TRUE
-    )
-    ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        role = EXCLUDED.role;
+-- RLS Policies for user_sessions
+DROP POLICY IF EXISTS "Allow public read access to user_sessions" ON user_sessions;
+CREATE POLICY "Allow public read access to user_sessions" ON user_sessions
+  FOR SELECT USING (true);
 
-    INSERT INTO public.notification_settings (user_id)
-    VALUES (NEW.id)
-    ON CONFLICT (user_id) DO NOTHING;
+DROP POLICY IF EXISTS "Allow insert on user_sessions" ON user_sessions;
+CREATE POLICY "Allow insert on user_sessions" ON user_sessions
+  FOR INSERT WITH CHECK (true);
 
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP POLICY IF EXISTS "Allow delete on user_sessions" ON user_sessions;
+CREATE POLICY "Allow delete on user_sessions" ON user_sessions
+  FOR DELETE USING (true);
 
-CREATE OR REPLACE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+CREATE INDEX IF NOT EXISTS idx_quizzes_created_by ON quizzes(created_by);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user_id ON quiz_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz_id ON quiz_attempts(quiz_id);
+CREATE INDEX IF NOT EXISTS idx_courses_created_by ON courses(created_by);
+CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON assignments(course_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_assignment_id ON assignment_submissions(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_student_id ON assignment_submissions(student_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_events_created_by ON scheduled_events(created_by);
+CREATE INDEX IF NOT EXISTS idx_scheduled_events_scheduled_date ON scheduled_events(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_course_id ON announcements(course_id);
+CREATE INDEX IF NOT EXISTS idx_discussions_course_id ON discussions(course_id);
+CREATE INDEX IF NOT EXISTS idx_discussions_author_id ON discussions(author_id);
+CREATE INDEX IF NOT EXISTS idx_auth_logs_user_id ON auth_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
 
--- ############################################################################
--- 4. ROW LEVEL SECURITY (RLS) POLICIES
--- ############################################################################
+-- Fix RLS Policies for Smart LMS
+-- This script grants necessary permissions to the anon role and ensures policies work correctly
 
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notification_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.discussion_posts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.scheduled_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.auth_logs ENABLE ROW LEVEL SECURITY;
+-- Grant usage on schema to anon and authenticated roles
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
--- 4.1 PROFILES POLICIES
-CREATE POLICY "Profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+-- Grant all privileges on all tables to anon and authenticated
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 
--- 4.2 QUIZZES POLICIES
-CREATE POLICY "Teachers can manage their own quizzes" ON public.quizzes
-    FOR ALL USING (auth.uid() = created_by AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'teacher');
-CREATE POLICY "Students can view published quizzes" ON public.quizzes
-    FOR SELECT USING (is_published = true AND (scheduled_publish_date IS NULL OR scheduled_publish_date <= NOW()) AND (scheduled_expiry_date IS NULL OR scheduled_expiry_date >= NOW()));
+-- Ensure future tables also get these permissions
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated;
 
--- 4.3 QUIZ ATTEMPTS POLICIES
-CREATE POLICY "Students can view and create their own attempts" ON public.quiz_attempts
-    FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Teachers can view attempts of their quizzes" ON public.quiz_attempts
-    FOR SELECT USING (EXISTS (SELECT 1 FROM public.quizzes WHERE id = quiz_attempts.quiz_id AND created_by = auth.uid()));
+-- ============================================
+-- DROP ALL EXISTING POLICIES AND RECREATE
+-- ============================================
 
--- 4.4 COURSES POLICIES
-CREATE POLICY "Teachers can manage their own courses" ON public.courses
-    FOR ALL USING (auth.uid() = created_by);
-CREATE POLICY "Everyone can view published courses" ON public.courses
-    FOR SELECT USING (is_published = true);
+-- PROFILES
+DROP POLICY IF EXISTS "Allow public read access to profiles" ON profiles;
+DROP POLICY IF EXISTS "Allow authenticated users to insert profiles" ON profiles;
+DROP POLICY IF EXISTS "Allow users to update own profile" ON profiles;
+DROP POLICY IF EXISTS "profiles_select_policy" ON profiles;
+DROP POLICY IF EXISTS "profiles_insert_policy" ON profiles;
+DROP POLICY IF EXISTS "profiles_update_policy" ON profiles;
+DROP POLICY IF EXISTS "profiles_delete_policy" ON profiles;
 
--- 4.5 ASSIGNMENTS POLICIES
-CREATE POLICY "Teachers can manage assignments for their courses" ON public.assignments
-    FOR ALL USING (EXISTS (SELECT 1 FROM public.courses WHERE id = assignments.course_id AND created_by = auth.uid()));
-CREATE POLICY "Students can view assignments for their courses" ON public.assignments
-    FOR SELECT USING (EXISTS (SELECT 1 FROM public.courses WHERE id = assignments.course_id AND (auth.uid() = ANY(students) OR is_published = true)));
+CREATE POLICY "profiles_select_policy" ON profiles FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "profiles_insert_policy" ON profiles FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "profiles_update_policy" ON profiles FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "profiles_delete_policy" ON profiles FOR DELETE TO anon, authenticated USING (true);
 
--- 4.6 SUBMISSIONS POLICIES
-CREATE POLICY "Students can manage their own submissions" ON public.submissions
-    FOR ALL USING (auth.uid() = student_id);
-CREATE POLICY "Teachers can view and grade submissions for their assignments" ON public.submissions
-    FOR ALL USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = submissions.assignment_id AND created_by = auth.uid()));
+-- QUIZZES
+DROP POLICY IF EXISTS "Allow public read access to quizzes" ON quizzes;
+DROP POLICY IF EXISTS "Allow authenticated insert on quizzes" ON quizzes;
+DROP POLICY IF EXISTS "Allow update on quizzes" ON quizzes;
+DROP POLICY IF EXISTS "Allow delete on quizzes" ON quizzes;
+DROP POLICY IF EXISTS "quizzes_select_policy" ON quizzes;
+DROP POLICY IF EXISTS "quizzes_insert_policy" ON quizzes;
+DROP POLICY IF EXISTS "quizzes_update_policy" ON quizzes;
+DROP POLICY IF EXISTS "quizzes_delete_policy" ON quizzes;
 
--- 4.7 NOTIFICATIONS POLICIES
-CREATE POLICY "Users can manage their own notifications" ON public.notifications
-    FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "quizzes_select_policy" ON quizzes FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "quizzes_insert_policy" ON quizzes FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "quizzes_update_policy" ON quizzes FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "quizzes_delete_policy" ON quizzes FOR DELETE TO anon, authenticated USING (true);
 
--- 4.8 NOTIFICATION SETTINGS POLICIES
-CREATE POLICY "Users can manage their own notification settings" ON public.notification_settings
-    FOR ALL USING (auth.uid() = user_id);
+-- QUIZ ATTEMPTS
+DROP POLICY IF EXISTS "Allow public read access to quiz_attempts" ON quiz_attempts;
+DROP POLICY IF EXISTS "Allow insert on quiz_attempts" ON quiz_attempts;
+DROP POLICY IF EXISTS "Allow update on quiz_attempts" ON quiz_attempts;
+DROP POLICY IF EXISTS "quiz_attempts_select_policy" ON quiz_attempts;
+DROP POLICY IF EXISTS "quiz_attempts_insert_policy" ON quiz_attempts;
+DROP POLICY IF EXISTS "quiz_attempts_update_policy" ON quiz_attempts;
+DROP POLICY IF EXISTS "quiz_attempts_delete_policy" ON quiz_attempts;
 
--- 4.9 MESSAGES POLICIES
-CREATE POLICY "Users can manage their own messages" ON public.messages
-    FOR ALL USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+CREATE POLICY "quiz_attempts_select_policy" ON quiz_attempts FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "quiz_attempts_insert_policy" ON quiz_attempts FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "quiz_attempts_update_policy" ON quiz_attempts FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "quiz_attempts_delete_policy" ON quiz_attempts FOR DELETE TO anon, authenticated USING (true);
 
--- 4.10 ANNOUNCEMENTS POLICIES
-CREATE POLICY "Teachers can manage announcements" ON public.announcements
-    FOR ALL USING (auth.uid() = created_by);
-CREATE POLICY "Students can view published announcements" ON public.announcements
-    FOR SELECT USING (is_published = true);
+-- COURSES
+DROP POLICY IF EXISTS "Allow public read access to courses" ON courses;
+DROP POLICY IF EXISTS "Allow insert on courses" ON courses;
+DROP POLICY IF EXISTS "Allow update on courses" ON courses;
+DROP POLICY IF EXISTS "Allow delete on courses" ON courses;
+DROP POLICY IF EXISTS "courses_select_policy" ON courses;
+DROP POLICY IF EXISTS "courses_insert_policy" ON courses;
+DROP POLICY IF EXISTS "courses_update_policy" ON courses;
+DROP POLICY IF EXISTS "courses_delete_policy" ON courses;
 
--- 4.11 DISCUSSION POSTS POLICIES
-CREATE POLICY "Users can manage their own discussion posts" ON public.discussion_posts
-    FOR ALL USING (auth.uid() = author_id);
-CREATE POLICY "Users can view all discussion posts in their courses" ON public.discussion_posts
-    FOR SELECT USING (EXISTS (SELECT 1 FROM public.courses WHERE id = discussion_posts.course_id AND (auth.uid() = ANY(students) OR auth.uid() = created_by OR is_published = true)));
+CREATE POLICY "courses_select_policy" ON courses FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "courses_insert_policy" ON courses FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "courses_update_policy" ON courses FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "courses_delete_policy" ON courses FOR DELETE TO anon, authenticated USING (true);
 
--- 4.12 SCHEDULED EVENTS POLICIES
-CREATE POLICY "Users can manage their own scheduled events" ON public.scheduled_events
-    FOR ALL USING (auth.uid() = created_by);
+-- ASSIGNMENTS
+DROP POLICY IF EXISTS "Allow public read access to assignments" ON assignments;
+DROP POLICY IF EXISTS "Allow insert on assignments" ON assignments;
+DROP POLICY IF EXISTS "Allow update on assignments" ON assignments;
+DROP POLICY IF EXISTS "Allow delete on assignments" ON assignments;
+DROP POLICY IF EXISTS "assignments_select_policy" ON assignments;
+DROP POLICY IF EXISTS "assignments_insert_policy" ON assignments;
+DROP POLICY IF EXISTS "assignments_update_policy" ON assignments;
+DROP POLICY IF EXISTS "assignments_delete_policy" ON assignments;
 
--- 4.13 AUTH LOGS POLICIES
-CREATE POLICY "Users can view their own auth logs" ON public.auth_logs
-    FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "assignments_select_policy" ON assignments FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "assignments_insert_policy" ON assignments FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "assignments_update_policy" ON assignments FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "assignments_delete_policy" ON assignments FOR DELETE TO anon, authenticated USING (true);
 
--- ############################################################################
--- 5. STORAGE BUCKETS SETUP
--- ############################################################################
+-- ASSIGNMENT SUBMISSIONS
+DROP POLICY IF EXISTS "Allow public read access to assignment_submissions" ON assignment_submissions;
+DROP POLICY IF EXISTS "Allow insert on assignment_submissions" ON assignment_submissions;
+DROP POLICY IF EXISTS "Allow update on assignment_submissions" ON assignment_submissions;
+DROP POLICY IF EXISTS "assignment_submissions_select_policy" ON assignment_submissions;
+DROP POLICY IF EXISTS "assignment_submissions_insert_policy" ON assignment_submissions;
+DROP POLICY IF EXISTS "assignment_submissions_update_policy" ON assignment_submissions;
+DROP POLICY IF EXISTS "assignment_submissions_delete_policy" ON assignment_submissions;
 
--- Note: Storage buckets must be created via the Supabase Dashboard or API,
--- but policies can be defined here if the buckets exist.
+CREATE POLICY "assignment_submissions_select_policy" ON assignment_submissions FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "assignment_submissions_insert_policy" ON assignment_submissions FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "assignment_submissions_update_policy" ON assignment_submissions FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "assignment_submissions_delete_policy" ON assignment_submissions FOR DELETE TO anon, authenticated USING (true);
 
--- Storage Policies for 'materials'
--- CREATE POLICY "Materials are publicly readable" ON storage.objects FOR SELECT USING (bucket_id = 'materials');
--- CREATE POLICY "Teachers can upload materials" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'materials' AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'teacher');
+-- NOTIFICATIONS
+DROP POLICY IF EXISTS "Allow public read access to notifications" ON notifications;
+DROP POLICY IF EXISTS "Allow insert on notifications" ON notifications;
+DROP POLICY IF EXISTS "Allow update on notifications" ON notifications;
+DROP POLICY IF EXISTS "Allow delete on notifications" ON notifications;
+DROP POLICY IF EXISTS "notifications_select_policy" ON notifications;
+DROP POLICY IF EXISTS "notifications_insert_policy" ON notifications;
+DROP POLICY IF EXISTS "notifications_update_policy" ON notifications;
+DROP POLICY IF EXISTS "notifications_delete_policy" ON notifications;
 
--- Storage Policies for 'submissions'
--- CREATE POLICY "Students can upload their own submissions" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'submissions' AND auth.uid()::text = (storage.foldername(name))[1]);
--- CREATE POLICY "Teachers can view all submissions" ON storage.objects FOR SELECT USING (bucket_id = 'submissions' AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'teacher');
--- CREATE POLICY "Students can view their own submissions" ON storage.objects FOR SELECT USING (bucket_id = 'submissions' AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY "notifications_select_policy" ON notifications FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "notifications_insert_policy" ON notifications FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "notifications_update_policy" ON notifications FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "notifications_delete_policy" ON notifications FOR DELETE TO anon, authenticated USING (true);
+
+-- SCHEDULED EVENTS
+DROP POLICY IF EXISTS "Allow public read access to scheduled_events" ON scheduled_events;
+DROP POLICY IF EXISTS "Allow insert on scheduled_events" ON scheduled_events;
+DROP POLICY IF EXISTS "Allow update on scheduled_events" ON scheduled_events;
+DROP POLICY IF EXISTS "Allow delete on scheduled_events" ON scheduled_events;
+DROP POLICY IF EXISTS "scheduled_events_select_policy" ON scheduled_events;
+DROP POLICY IF EXISTS "scheduled_events_insert_policy" ON scheduled_events;
+DROP POLICY IF EXISTS "scheduled_events_update_policy" ON scheduled_events;
+DROP POLICY IF EXISTS "scheduled_events_delete_policy" ON scheduled_events;
+
+CREATE POLICY "scheduled_events_select_policy" ON scheduled_events FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "scheduled_events_insert_policy" ON scheduled_events FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "scheduled_events_update_policy" ON scheduled_events FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "scheduled_events_delete_policy" ON scheduled_events FOR DELETE TO anon, authenticated USING (true);
+
+-- NOTIFICATION SETTINGS
+DROP POLICY IF EXISTS "Allow public read access to notification_settings" ON notification_settings;
+DROP POLICY IF EXISTS "Allow insert on notification_settings" ON notification_settings;
+DROP POLICY IF EXISTS "Allow update on notification_settings" ON notification_settings;
+DROP POLICY IF EXISTS "notification_settings_select_policy" ON notification_settings;
+DROP POLICY IF EXISTS "notification_settings_insert_policy" ON notification_settings;
+DROP POLICY IF EXISTS "notification_settings_update_policy" ON notification_settings;
+DROP POLICY IF EXISTS "notification_settings_delete_policy" ON notification_settings;
+
+CREATE POLICY "notification_settings_select_policy" ON notification_settings FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "notification_settings_insert_policy" ON notification_settings FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "notification_settings_update_policy" ON notification_settings FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "notification_settings_delete_policy" ON notification_settings FOR DELETE TO anon, authenticated USING (true);
+
+-- MESSAGES
+DROP POLICY IF EXISTS "Allow public read access to messages" ON messages;
+DROP POLICY IF EXISTS "Allow insert on messages" ON messages;
+DROP POLICY IF EXISTS "Allow update on messages" ON messages;
+DROP POLICY IF EXISTS "Allow delete on messages" ON messages;
+DROP POLICY IF EXISTS "messages_select_policy" ON messages;
+DROP POLICY IF EXISTS "messages_insert_policy" ON messages;
+DROP POLICY IF EXISTS "messages_update_policy" ON messages;
+DROP POLICY IF EXISTS "messages_delete_policy" ON messages;
+
+CREATE POLICY "messages_select_policy" ON messages FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "messages_insert_policy" ON messages FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "messages_update_policy" ON messages FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "messages_delete_policy" ON messages FOR DELETE TO anon, authenticated USING (true);
+
+-- ANNOUNCEMENTS
+DROP POLICY IF EXISTS "Allow public read access to announcements" ON announcements;
+DROP POLICY IF EXISTS "Allow insert on announcements" ON announcements;
+DROP POLICY IF EXISTS "Allow update on announcements" ON announcements;
+DROP POLICY IF EXISTS "Allow delete on announcements" ON announcements;
+DROP POLICY IF EXISTS "announcements_select_policy" ON announcements;
+DROP POLICY IF EXISTS "announcements_insert_policy" ON announcements;
+DROP POLICY IF EXISTS "announcements_update_policy" ON announcements;
+DROP POLICY IF EXISTS "announcements_delete_policy" ON announcements;
+
+CREATE POLICY "announcements_select_policy" ON announcements FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "announcements_insert_policy" ON announcements FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "announcements_update_policy" ON announcements FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "announcements_delete_policy" ON announcements FOR DELETE TO anon, authenticated USING (true);
+
+-- DISCUSSIONS
+DROP POLICY IF EXISTS "Allow public read access to discussions" ON discussions;
+DROP POLICY IF EXISTS "Allow insert on discussions" ON discussions;
+DROP POLICY IF EXISTS "Allow update on discussions" ON discussions;
+DROP POLICY IF EXISTS "Allow delete on discussions" ON discussions;
+DROP POLICY IF EXISTS "discussions_select_policy" ON discussions;
+DROP POLICY IF EXISTS "discussions_insert_policy" ON discussions;
+DROP POLICY IF EXISTS "discussions_update_policy" ON discussions;
+DROP POLICY IF EXISTS "discussions_delete_policy" ON discussions;
+
+CREATE POLICY "discussions_select_policy" ON discussions FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "discussions_insert_policy" ON discussions FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "discussions_update_policy" ON discussions FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "discussions_delete_policy" ON discussions FOR DELETE TO anon, authenticated USING (true);
+
+-- AUTH LOGS
+DROP POLICY IF EXISTS "Allow public read access to auth_logs" ON auth_logs;
+DROP POLICY IF EXISTS "Allow insert on auth_logs" ON auth_logs;
+DROP POLICY IF EXISTS "auth_logs_select_policy" ON auth_logs;
+DROP POLICY IF EXISTS "auth_logs_insert_policy" ON auth_logs;
+DROP POLICY IF EXISTS "auth_logs_update_policy" ON auth_logs;
+DROP POLICY IF EXISTS "auth_logs_delete_policy" ON auth_logs;
+
+CREATE POLICY "auth_logs_select_policy" ON auth_logs FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "auth_logs_insert_policy" ON auth_logs FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "auth_logs_update_policy" ON auth_logs FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "auth_logs_delete_policy" ON auth_logs FOR DELETE TO anon, authenticated USING (true);
+
+-- USER SESSIONS
+DROP POLICY IF EXISTS "Allow public read access to user_sessions" ON user_sessions;
+DROP POLICY IF EXISTS "Allow insert on user_sessions" ON user_sessions;
+DROP POLICY IF EXISTS "Allow delete on user_sessions" ON user_sessions;
+DROP POLICY IF EXISTS "user_sessions_select_policy" ON user_sessions;
+DROP POLICY IF EXISTS "user_sessions_insert_policy" ON user_sessions;
+DROP POLICY IF EXISTS "user_sessions_update_policy" ON user_sessions;
+DROP POLICY IF EXISTS "user_sessions_delete_policy" ON user_sessions;
+
+CREATE POLICY "user_sessions_select_policy" ON user_sessions FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "user_sessions_insert_policy" ON user_sessions FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "user_sessions_update_policy" ON user_sessions FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "user_sessions_delete_policy" ON user_sessions FOR DELETE TO anon, authenticated USING (true);

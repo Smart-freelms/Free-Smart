@@ -3,11 +3,12 @@ export interface User {
   name: string
   email: string
   role: "student" | "teacher"
-  password: string // Added password field for authentication
+  password: string
   createdAt: Date
-  isActive: boolean // Added active status for account management
-  profilePicture?: string // Added optional profile picture
-  bio?: string // Added optional bio
+  updatedAt?: Date
+  isActive: boolean
+  profilePicture?: string
+  bio?: string
 }
 
 export interface Question {
@@ -51,6 +52,7 @@ export interface QuizAttempt {
   endTime: Date
   timeSpent: number
   passed: boolean
+  createdAt?: Date
 }
 
 export interface QuizResult {
@@ -96,8 +98,7 @@ export interface Assignment {
   createdBy: string
   dueDate: Date
   maxPoints: number
-  allowLateSubmission: boolean
-  submissionTypes: ("text" | "file" | "url")[]
+  isPublished: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -108,24 +109,18 @@ export interface AssignmentSubmission {
   studentId: string
   content: string
   fileUrl?: string
-  fileData?: {
-    name: string
-    size: number
-    type: string
-    content: ArrayBuffer | string
-  }
-  submittedAt: Date
   grade?: number
   feedback?: string
-  gradedBy?: string
+  submittedAt: Date
   gradedAt?: Date
+  createdAt?: Date
 }
 
 export interface CourseMaterial {
   id: string
   title: string
   type: "document" | "video" | "link" | "image" | "file"
-  url?: string // Optional for uploaded files
+  url?: string
   fileData?: {
     name: string
     size: number
@@ -135,7 +130,7 @@ export interface CourseMaterial {
   }
   description?: string
   uploadedAt: Date
-  isSelected?: boolean // For bulk operations
+  isSelected?: boolean
   downloadCount?: number
   tags?: string[]
   scheduledPublishDate?: string
@@ -163,6 +158,7 @@ export interface Notification {
   message: string
   type: "info" | "success" | "warning" | "error"
   isRead: boolean
+  link?: string
   createdAt: Date
 }
 
@@ -173,6 +169,9 @@ export interface DiscussionPost {
   title: string
   content: string
   parentId?: string
+  likes: number
+  isPinned: boolean
+  isResolved: boolean
   createdAt: string
   updatedAt: string
 }
@@ -181,12 +180,14 @@ export interface ScheduledEvent {
   id: string
   title: string
   description: string
-  type: "quiz" | "assignment" | "course" | "announcement"
-  entityId: string
+  eventType: string
   scheduledDate: string
-  action: "publish" | "unpublish" | "due" | "reminder"
-  isCompleted: boolean
+  endDate?: string
   createdBy: string
+  courseId?: string
+  relatedId?: string
+  isRecurring: boolean
+  recurrencePattern?: string
   createdAt: string
 }
 
@@ -194,10 +195,10 @@ export interface NotificationSettings {
   userId: string
   emailNotifications: boolean
   pushNotifications: boolean
+  quizReminders: boolean
   assignmentReminders: boolean
-  gradeNotifications: boolean
-  messageNotifications: boolean
   announcementNotifications: boolean
+  messageNotifications: boolean
 }
 
 export interface Message {
@@ -216,26 +217,28 @@ export interface Announcement {
   content: string
   courseId?: string
   createdBy: string
+  priority: "low" | "normal" | "high"
+  isPinned: boolean
   createdAt: string
-  isPublished: boolean
   updatedAt?: string
 }
 
 export interface AuthLog {
   id: string
   userId: string
-  event: string
-  details?: Record<string, unknown>
-  timestamp: string
-  ip: string
+  action: string
+  ipAddress?: string
+  userAgent?: string
+  success: boolean
+  createdAt: string
 }
 
 export interface UserSession {
   id: string
   userId: string
   token: string
-  createdAt: string
   expiresAt: string
-  isActive: boolean
-  deviceInfo?: string
+  ipAddress?: string
+  userAgent?: string
+  createdAt: string
 }
