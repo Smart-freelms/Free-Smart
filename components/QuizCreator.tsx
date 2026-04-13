@@ -6,6 +6,7 @@ import { db } from '../utils/database';
 import { QuestionForm } from './quizzes/QuestionForm';
 import { QuestionList } from './quizzes/QuestionList';
 import { QuizSettings } from './quizzes/QuizSettings';
+import { QuizTaker } from './QuizTaker';
 
 interface QuizCreatorProps {
   user: User;
@@ -150,13 +151,36 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
     }
   };
 
-  if (showPreview && quiz.title && quiz.questions && quiz.questions.length > 0) {
+  if (showPreview) {
+    const previewQuiz: Quiz = {
+      id: 'preview',
+      title: quiz.title || 'Preview Quiz',
+      description: quiz.description || '',
+      createdBy: user.id,
+      questions: quiz.questions || [],
+      timeLimit: quiz.timeLimit,
+      allowRetry: true,
+      shuffleQuestions: quiz.shuffleQuestions || false,
+      shuffleOptions: quiz.shuffleOptions || false,
+      passingScore: quiz.passingScore || 60,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isPublished: true
+    };
+
     return (
-      <QuizTaker
-        quiz={quiz as Quiz}
-        user={mockUser}
-        onComplete={() => setShowPreview(false)}
-      />
+      <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b z-10 px-4 py-3 flex items-center justify-between">
+          <span className="font-bold text-purple-600">PREVIEW MODE</span>
+          <button
+            onClick={() => setShowPreview(false)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            Close Preview
+          </button>
+        </div>
+        <QuizTaker quiz={previewQuiz} user={user} onComplete={() => setShowPreview(false)} />
+      </div>
     );
   }
 

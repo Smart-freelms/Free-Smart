@@ -18,7 +18,7 @@ import { supabase } from "./supabase"
 
 class QuizDatabase {
   private dbName = "LMSAppDB"
-  private version = 4
+  private version = 5
   private db: IDBDatabase | null = null
 
   async init(): Promise<void> {
@@ -154,7 +154,7 @@ class QuizDatabase {
     try {
       const { data } = await supabase.from('profiles').select('*').eq('email', email).maybeSingle()
       if (data) {
-        const user: User = {
+        const userProfile: User = {
           id: data.id,
           name: data.name,
           email: data.email,
@@ -205,8 +205,13 @@ class QuizDatabase {
           bio: data.bio,
           profilePicture: data.profile_picture
         }
-        const transaction = this.db!.transaction(["users"], "readwrite")
-        transaction.objectStore("users").put(user)
+        await new Promise<void>((resolve, reject) => {
+          const transaction = this.db!.transaction(["users"], "readwrite")
+          const store = transaction.objectStore("users")
+          const request = store.put(user)
+          request.onsuccess = () => resolve()
+          request.onerror = () => reject(request.error)
+        })
         return user
       }
     } catch (e) {

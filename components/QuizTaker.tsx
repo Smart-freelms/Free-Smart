@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Quiz, User, Question, QuizAttempt, QuizResult } from '../types';
 import { ArrowLeft, Clock, CheckCircle, AlertCircle, ArrowRight, Flag } from 'lucide-react';
 import { db } from '../utils/database';
@@ -10,18 +10,101 @@ interface QuizTakerProps {
 }
 
 const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
   }
-  return shuffled;
+  return newArray;
 };
 
 export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) => {
   const [isAccessDenied, setIsAccessDenied] = useState(false);
   const [accessError, setAccessError] = useState("");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
+  const [shuffledOptionsMap, setShuffledOptionsMap] = useState<Record<string, string[]>>({});
+
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [questionTimeRemaining, setQuestionTimeRemaining] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [results, setResults] = useState<QuizResult | null>(null);
+
+  // Load session
+  useEffect(() => {
+    const loadSession = async () => {
+      await db.init();
+      const session = await db.getQuizSession(quiz.id, user.id);
+
+      let initialQuestions = quiz.questions;
+      let initialOptions: Record<string, string[]> = {};
+
+      if (session) {
+        setAnswers(session.answers);
+        setCurrentQuestionIndex(session.currentQuestionIndex);
+        if (session.timeRemaining !== undefined) setTimeRemaining(session.timeRemaining);
+        setStartTime(new Date(session.startTime));
+
+        // Restore question order
+        if (session.questionOrder) {
+          const questionMap = new Map(quiz.questions.map(q => [q.id, q]));
+          initialQuestions = session.questionOrder
+            .map((id: string) => questionMap.get(id))
+            .filter(Boolean) as Question[];
+        }
+
+        // Restore option order
+        if (session.optionsMap) {
+          initialOptions = session.optionsMap;
+        }
+      } else {
+        setStartTime(new Date());
+        if (quiz.timeLimit) {
+          setTimeRemaining(quiz.timeLimit * 60);
+        }
+
+        if (quiz.shuffleQuestions) {
+          initialQuestions = shuffleArray(quiz.questions);
+        }
+
+        quiz.questions.forEach(q => {
+          if (q.options) {
+            initialOptions[q.id] = quiz.shuffleOptions ? shuffleArray(q.options) : q.options;
+          }
+        });
+      }
+
+      setShuffledQuestions(initialQuestions);
+      setShuffledOptionsMap(initialOptions);
+      setIsLoaded(true);
+    };
+    loadSession();
+  }, [quiz.id, user.id]);
+
+  // Save session
+  useEffect(() => {
+    if (!isLoaded || showResults || !startTime) return;
+    const saveSession = async () => {
+      await db.saveQuizSession({
+        id: `${user.id}-${quiz.id}`,
+        userId: user.id,
+        quizId: quiz.id,
+        answers,
+        currentQuestionIndex,
+        timeRemaining,
+        startTime: startTime.toISOString(),
+        questionOrder: shuffledQuestions.map(q => q.id),
+        optionsMap: shuffledOptionsMap,
+        updatedAt: new Date().toISOString()
+      });
+    };
+    saveSession();
+  }, [answers, currentQuestionIndex, timeRemaining, isLoaded, showResults, shuffledQuestions, shuffledOptionsMap, startTime]);
 
   const questions = React.useMemo(() => {
     return quiz.shuffleQuestions ? shuffleArray(quiz.questions) : quiz.questions;
@@ -51,85 +134,48 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
       }
     }
   }, [quiz, user]);
-  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
-  const [questionTimeRemaining, setQuestionTimeRemaining] = useState<number | null>(null);
-  const [startTime, setStartTime] = useState(new Date());
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<QuizResult | null>(null);
 
   useEffect(() => {
-    loadSession();
-  }, [quiz.id, user.id]);
+    if (timeRemaining === null || timeRemaining <= 0) return;
 
-  const loadSession = async () => {
-    try {
-      const session = await db.getQuizSession(quiz.id, user.id);
-      if (session) {
-        setAnswers(session.answers || {});
-        setCurrentQuestionIndex(session.currentIndex || 0);
-        setTimeRemaining(session.timeRemaining);
-        setStartTime(new Date(session.startTime));
-      }
-    } catch (error) {
-      console.error('Failed to load quiz session:', error);
-      // Continue without session data if loading fails
-    }
-  };
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => (prev !== null && prev > 0 ? prev - 1 : prev));
+    }, 1000);
 
-  const saveSession = async (updates: {
-    answers?: Record<string, string | string[]>;
-    currentIndex?: number;
-    timeRemaining?: number | null;
-  }) => {
-    try {
-      const session = {
-        id: `${quiz.id}-${user.id}`,
-        quizId: quiz.id,
-        userId: user.id,
-        answers: updates.answers || answers,
-        currentIndex: updates.currentIndex !== undefined ? updates.currentIndex : currentQuestionIndex,
-        timeRemaining: updates.timeRemaining !== undefined ? updates.timeRemaining : timeRemaining,
-        startTime: startTime.toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await db.saveQuizSession(session);
-    } catch (error) {
-      console.error('Failed to save quiz session:', error);
-    }
-  };
+    return () => clearInterval(timer);
+  }, [timeRemaining === null]);
 
   useEffect(() => {
-    if (quiz.timeLimit) {
-      setTimeRemaining(quiz.timeLimit * 60);
+    if (timeRemaining === 0 && !showResults) {
+      handleSubmit();
     }
-  }, [quiz.id, quiz.timeLimit]);
+  }, [timeRemaining, showResults]);
 
+  // Per-question timer
   useEffect(() => {
+    const currentQuestion = shuffledQuestions[currentQuestionIndex];
     if (currentQuestion?.timeLimit) {
       setQuestionTimeRemaining(currentQuestion.timeLimit);
     } else {
       setQuestionTimeRemaining(null);
     }
-  }, [currentQuestionIndex, questions]);
+  }, [currentQuestionIndex, shuffledQuestions]);
 
   useEffect(() => {
-    if (timeRemaining === null) return;
+    if (questionTimeRemaining === null || questionTimeRemaining <= 0) return;
 
     const timer = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          handleSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setQuestionTimeRemaining(prev => (prev !== null && prev > 0 ? prev - 1 : prev));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeRemaining]);
+  }, [questionTimeRemaining === null, currentQuestionIndex]);
+
+  useEffect(() => {
+    if (questionTimeRemaining === 0 && !showResults) {
+      handleNext();
+    }
+  }, [questionTimeRemaining, showResults]);
 
   useEffect(() => {
     if (questionTimeRemaining === null) return;
@@ -160,7 +206,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
+  const currentQuestion = shuffledQuestions[currentQuestionIndex];
 
   const handleAnswerChange = (value: string | string[]) => {
     const newAnswers = {
@@ -175,7 +221,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     let totalPoints = 0;
     let earnedPoints = 0;
 
-    const detailedResults = questions.map(question => {
+    const detailedResults = shuffledQuestions.map(question => {
       const userAnswer = answers[question.id];
       let isCorrect = false;
 
@@ -184,7 +230,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
       } else {
         // For text-based answers, do a case-insensitive comparison
         const correctAnswer = (question.correctAnswer as string).toLowerCase().trim();
-        const userAnswerText = (userAnswer || '').toLowerCase().trim();
+        const userAnswerText = (userAnswer as string || '').toLowerCase().trim();
         isCorrect = userAnswerText === correctAnswer;
       }
 
@@ -218,6 +264,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   };
 
   const handleSubmit = async () => {
+    if (!startTime) return;
     setIsSubmitting(true);
 
     const endTime = new Date();
@@ -247,6 +294,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
       console.error('Failed to save attempt:', error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentQuestionIndex === shuffledQuestions.length - 1) {
+      handleSubmit();
+    } else {
+      setCurrentQuestionIndex(prev => prev + 1);
     }
   };
 
@@ -449,6 +504,10 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     }
   };
 
+  if (!isLoaded) {
+    return <div className="min-h-screen flex items-center justify-center">Loading quiz session...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
@@ -465,7 +524,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
               <div>
                 <h1 className="text-xl font-bold text-gray-900">{quiz.title}</h1>
                 <p className="text-sm text-gray-500">
-                  Question {currentQuestionIndex + 1} of {questions.length}
+                  Question {currentQuestionIndex + 1} of {shuffledQuestions.length}
                 </p>
               </div>
             </div>
@@ -475,16 +534,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
                 <div className="flex items-center text-orange-600">
                   <Clock className="w-5 h-5 mr-2" />
                   <span className="font-mono text-lg">
-                    {formatTime(timeRemaining)}
+                    Total: {formatTime(timeRemaining)}
                   </span>
                 </div>
               )}
               {questionTimeRemaining !== null && (
-                <div className="flex items-center text-blue-600 text-sm mt-1">
+                <div className="flex items-center text-red-600 text-sm font-semibold">
                   <Clock className="w-4 h-4 mr-2" />
-                  <span className="font-mono">
-                    Question: {formatTime(questionTimeRemaining)}
-                  </span>
+                  Question: {formatTime(questionTimeRemaining)}
                 </div>
               )}
             </div>
@@ -498,13 +555,13 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">Progress</span>
             <span className="text-sm text-gray-500">
-              {Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}%
+              {Math.round(((currentQuestionIndex + 1) / shuffledQuestions.length) * 100)}%
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+              style={{ width: `${((currentQuestionIndex + 1) / shuffledQuestions.length) * 100}%` }}
             />
           </div>
         </div>
@@ -546,7 +603,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
           </button>
 
           <div className="flex items-center space-x-3">
-            {currentQuestionIndex === questions.length - 1 ? (
+            {currentQuestionIndex === shuffledQuestions.length - 1 ? (
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
@@ -556,11 +613,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
               </button>
             ) : (
               <button
-                onClick={() => {
-                  const newIndex = Math.min(questions.length - 1, currentQuestionIndex + 1);
-                  setCurrentQuestionIndex(newIndex);
-                  saveSession({ currentIndex: newIndex });
-                }}
+                onClick={handleNext}
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Next
@@ -574,7 +627,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
         <div className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h3 className="text-sm font-medium text-gray-700 mb-4">Quick Navigation</h3>
           <div className="grid grid-cols-10 gap-2">
-            {questions.map((_, index) => (
+            {shuffledQuestions.map((_, index) => (
               <button
                 key={index}
                 onClick={() => {
@@ -584,7 +637,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
                 className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                   index === currentQuestionIndex
                     ? 'bg-blue-600 text-white'
-                    : answers[questions[index].id]
+                    : answers[shuffledQuestions[index].id]
                     ? 'bg-green-100 text-green-800 hover:bg-green-200'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
