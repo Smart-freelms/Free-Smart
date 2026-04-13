@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Quiz, Question } from '../types';
 import { ArrowLeft, Save, Eye, EyeOff } from 'lucide-react';
+import { QuizTaker } from './QuizTaker';
 import { db } from '../utils/database';
 import { QuestionForm } from './quizzes/QuestionForm';
 import { QuestionList } from './quizzes/QuestionList';
@@ -38,6 +39,16 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  const mockUser: User = {
+    id: 'preview-user',
+    name: 'Preview Student',
+    email: 'preview@example.com',
+    role: 'student',
+    password: '',
+    createdAt: new Date(),
+    isActive: true
+  };
 
   useEffect(() => {
     if (editQuizId) {
@@ -125,7 +136,9 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
         passingScore: quiz.passingScore!,
         createdAt: editQuizId ? quiz.createdAt! : new Date(),
         updatedAt: new Date(),
-        isPublished: publish
+        isPublished: publish,
+        scheduledPublishDate: quiz.scheduledPublishDate,
+        scheduledExpiryDate: quiz.scheduledExpiryDate
       };
 
       await db.saveQuiz(quizToSave);
@@ -136,6 +149,16 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
       setIsLoading(false);
     }
   };
+
+  if (showPreview && quiz.title && quiz.questions && quiz.questions.length > 0) {
+    return (
+      <QuizTaker
+        quiz={quiz as Quiz}
+        user={mockUser}
+        onComplete={() => setShowPreview(false)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100">
