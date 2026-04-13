@@ -30,8 +30,10 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
     try {
       const dbPosts = await db.getDiscussionPosts(course.id)
       setPosts(dbPosts)
+      return dbPosts
     } catch (error) {
       console.error("Failed to load posts:", error)
+      return []
     } finally {
       setIsLoading(false)
     }
@@ -69,19 +71,21 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
     }
   }
 
-  const getUserName = (userId: string) => {
-    return `User ${userId.slice(0, 4)}`
-  }
+    const updatedPosts = await loadPosts()
 
-  const getReplies = (postId: string) => {
-    return posts.filter((p) => p.parentId === postId)
+    // If the selected post itself was the one replied to, refresh it
+    // although for root posts, only the replies list (calculated from all posts) changes.
+    if (selectedPost?.id === postId) {
+      const updatedPost = updatedPosts.find(p => p.id === postId)
+      if (updatedPost) setSelectedPost(updatedPost)
+    }
   }
 
   const filteredThreads = posts
     .filter((p) => !p.parentId)
     .filter(
       (post) =>
-        post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         post.content.toLowerCase().includes(searchTerm.toLowerCase()),
     )
 

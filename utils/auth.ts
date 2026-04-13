@@ -13,6 +13,28 @@ export const getCurrentUser = async (): Promise<User | null> => {
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
+      .single()
+
+    if (profile) {
+      const newUser: User = {
+        id: session.user.id,
+        name: profile.name || session.user.user_metadata.name || 'User',
+        email: session.user.email!,
+        role: profile.role || session.user.user_metadata.role || 'student',
+        createdAt: new Date(session.user.created_at),
+        isActive: true,
+        password: '', // Password is not stored in our profile table
+      }
+      await db.saveUser(newUser)
+      return newUser
+
+  const user = await db.getUserById(session.user.id)
+  if (!user) {
+    // If user is in Supabase Auth but not in local DB, we should sync it
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
       .maybeSingle()
 
     if (profile) {
@@ -124,6 +146,7 @@ export const signIn = async (email: string, password: string): Promise<User> => 
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
+      .single()
       .maybeSingle()
 
     user = {
