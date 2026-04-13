@@ -169,11 +169,11 @@ class QuizDatabase {
         await new Promise<void>((resolve, reject) => {
           const transaction = this.db!.transaction(["users"], "readwrite")
           const store = transaction.objectStore("users")
-          const request = store.put(userProfile)
+          const request = store.put(user)
           request.onsuccess = () => resolve()
           request.onerror = () => reject(request.error)
         })
-        return userProfile
+        return user
       }
     } catch (e) {
       console.error("Supabase fetch error:", e)
@@ -793,9 +793,9 @@ class QuizDatabase {
         allowLateSubmission: data.allow_late_submission,
         submissionTypes: data.submission_types,
         createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at),
-        scheduledPublishDate: data.scheduled_publish_date,
-        scheduledExpiryDate: data.scheduled_expiry_date
+        updatedAt: new Date(d.updated_at),
+        scheduledPublishDate: d.scheduled_publish_date,
+        scheduled_expiry_date: d.scheduled_expiry_date
       }
     } catch (e) {}
 
@@ -1541,6 +1541,7 @@ class QuizDatabase {
 
   // Quiz session persistence methods
   async saveQuizSession(session: any): Promise<void> {
+    await this.init()
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(["quizSessions"], "readwrite")
       const store = transaction.objectStore("quizSessions")
@@ -1548,6 +1549,35 @@ class QuizDatabase {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+  }
+  
+  async getQuizSession(quizId: string, userId: string): Promise<any | null> {
+    await this.init()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(["quizSessions"], "readonly")
+      const store = transaction.objectStore("quizSessions")
+      const index = store.index("userId")
+      const request = index.getAll(userId)
+      request.onsuccess = () => {
+        const sessions = request.result
+        const session = sessions.find((s: any) => s.quizId === quizId)
+        resolve(session || null)
+      }
+      request.onerror = () => reject(request.error)
+    })
+  }
+  
+  async deleteQuizSession(quizId: string, userId: string): Promise<void> {
+    const session = await this.getQuizSession(quizId, userId)
+    if (session) {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction(["quizSessions"], "readwrite")
+        const store = transaction.objectStore("quizSessions")
+        const request = store.delete(session.id)
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+      })
+    }
   }
 
   async getQuizSession(quizId: string, userId: string): Promise<any | null> {

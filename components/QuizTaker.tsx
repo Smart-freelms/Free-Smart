@@ -106,6 +106,22 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     saveSession();
   }, [answers, currentQuestionIndex, timeRemaining, isLoaded, showResults, shuffledQuestions, shuffledOptionsMap, startTime]);
 
+  const questions = React.useMemo(() => {
+    return quiz.shuffleQuestions ? shuffleArray(quiz.questions) : quiz.questions;
+  }, [quiz.id, quiz.questions, quiz.shuffleQuestions]);
+
+  const shuffledOptionsMap = React.useMemo(() => {
+    const map: Record<string, string[]> = {};
+    questions.forEach(q => {
+      if (q.options && quiz.shuffleOptions) {
+        map[q.id] = shuffleArray(q.options);
+      } else if (q.options) {
+        map[q.id] = q.options;
+      }
+    });
+    return map;
+  }, [questions, quiz.shuffleOptions]);
+
   useEffect(() => {
     const now = new Date();
     if (user.role === 'student') {
@@ -161,6 +177,29 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     }
   }, [questionTimeRemaining, showResults]);
 
+  useEffect(() => {
+    if (questionTimeRemaining === null) return;
+
+    const timer = setInterval(() => {
+      setQuestionTimeRemaining(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          if (currentQuestionIndex === questions.length - 1) {
+            handleSubmit();
+          } else {
+            const newIndex = currentQuestionIndex + 1;
+            setCurrentQuestionIndex(newIndex);
+            saveSession({ currentIndex: newIndex });
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [questionTimeRemaining, currentQuestionIndex, questions.length]);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -170,10 +209,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   const currentQuestion = shuffledQuestions[currentQuestionIndex];
 
   const handleAnswerChange = (value: string | string[]) => {
-    setAnswers({
+    const newAnswers = {
       ...answers,
       [currentQuestion.id]: value
-    });
+    };
+    setAnswers(newAnswers);
+    saveSession({ answers: newAnswers });
   };
 
   const calculateScore = () => {
@@ -549,7 +590,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
         {/* Navigation */}
         <div className="flex items-center justify-between">
           <button
-            onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
+            onClick={() => {
+              const newIndex = Math.max(0, currentQuestionIndex - 1);
+              setCurrentQuestionIndex(newIndex);
+              saveSession({ currentIndex: newIndex });
+            }}
             disabled={currentQuestionIndex === 0}
             className="flex items-center px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -585,7 +630,10 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
             {shuffledQuestions.map((_, index) => (
               <button
                 key={index}
-                onClick={() => setCurrentQuestionIndex(index)}
+                onClick={() => {
+                  setCurrentQuestionIndex(index);
+                  saveSession({ currentIndex: index });
+                }}
                 className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                   index === currentQuestionIndex
                     ? 'bg-blue-600 text-white'
