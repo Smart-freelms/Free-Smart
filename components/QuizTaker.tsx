@@ -74,6 +74,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
       }
     } catch (error) {
       console.error('Failed to load quiz session:', error);
+      // Continue without session data if loading fails
     }
   };
 
