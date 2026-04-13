@@ -100,6 +100,8 @@ export interface Assignment {
   submissionTypes: ("text" | "file" | "url")[]
   createdAt: Date
   updatedAt: Date
+  scheduledPublishDate?: string
+  scheduledExpiryDate?: string
 }
 
 export interface AssignmentSubmission {
