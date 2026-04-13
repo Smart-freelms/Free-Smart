@@ -22,3 +22,14 @@
  GET /auth 200 in 41ms
  GET /auth 200 in 28ms
  GET /auth 200 in 36ms
+  ▲ Next.js 14.2.16
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+ ✓ Ready in 1793ms
+ ○ Compiling /auth ...
+ ✓ Compiled /auth in 8.4s (616 modules)
+Supabase environment variables are not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+ GET /auth 200 in 9385ms
+ ✓ Compiled in 1057ms (308 modules)
+ GET /auth 200 in 46ms

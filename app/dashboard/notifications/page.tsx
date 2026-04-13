@@ -10,5 +10,9 @@ export default function NotificationsPage() {
 
   if (!user) return null
 
-  return <NotificationCenter user={user} onBack={() => router.push('/dashboard')} />
+  return (
+    <div>
+      <NotificationCenter user={user} onBack={() => router.push('/dashboard')} />
+    </div>
+  )
 }

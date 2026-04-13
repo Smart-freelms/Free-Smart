@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import type { User } from "../types"
-import { ArrowLeft, MessageCircle } from "lucide-react"
+import { MessageCircle } from "lucide-react"
 import { db } from "../utils/database"
 import { ConversationList, Conversation } from "./messaging/ConversationList"
 import { ChatArea } from "./messaging/ChatArea"

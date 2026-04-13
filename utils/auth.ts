@@ -27,6 +27,56 @@ export const getCurrentUser = async (): Promise<User | null> => {
       }
       await db.saveUser(newUser)
       return newUser
+
+  const user = await db.getUserById(session.user.id)
+  if (!user) {
+    // If user is in Supabase Auth but not in local DB, we should sync it
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle()
+
+    if (profile) {
+      const newUser: User = {
+        id: session.user.id,
+        name: profile.name || session.user.user_metadata.name || 'User',
+        email: session.user.email!,
+        role: profile.role || session.user.user_metadata.role || 'student',
+        createdAt: new Date(session.user.created_at),
+        isActive: true,
+        password: '', // Password is not stored in our profile table
+      }
+      await db.saveUser(newUser)
+      return newUser
+    }
+  }
+
+  return user
+}
+
+export const login = async (email: string, name: string, role: "student" | "teacher"): Promise<User> => {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      data: { name, role }
+    }
+  })
+
+  if (error) throw error
+
+  // This is a simplified version for the demo. In a real app,
+  // we would wait for the OTP verification.
+  let user = await db.getUserByEmail(email)
+  if (!user) {
+    user = {
+      id: Date.now().toString(), // Will be updated by Supabase ID on session change
+      name,
+      email,
+      role,
+      createdAt: new Date(),
+      isActive: true,
+      password: '',
     }
   }
 
@@ -64,6 +114,19 @@ export const signUp = async (
   // The Supabase 'profiles' table is handled by a database trigger (on_auth_user_created)
   await db.saveUser(user)
 
+  // Also save to Supabase profiles table for persistence
+  try {
+    await supabase.from('profiles').insert({
+      id: data.user.id,
+      name,
+      email,
+      role,
+      is_active: true
+    })
+  } catch (e) {
+    console.error("Failed to save profile to Supabase:", e)
+  }
+
   return user
 }
 
@@ -84,6 +147,7 @@ export const signIn = async (email: string, password: string): Promise<User> => 
       .select('*')
       .eq('id', data.user.id)
       .single()
+      .maybeSingle()
 
     user = {
       id: data.user.id,

@@ -10,5 +10,9 @@ export default function MessagesPage() {
 
   if (!user) return null
 
-  return <MessagingSystem user={user} onBack={() => router.push('/dashboard')} />
+  return (
+    <div>
+      <MessagingSystem user={user} onBack={() => router.push('/dashboard')} />
+    </div>
+  )
 }
