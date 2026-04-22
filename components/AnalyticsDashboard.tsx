@@ -107,8 +107,6 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
     })
   }
 
-  const { userNames } = useUserNames()
-
   const getAllStudents = () => {
     const students = new Set<string>()
     courses.forEach((c) => c.students.forEach((s) => students.add(s)))
@@ -136,10 +134,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ user, on
       return {
         attempt,
         quiz,
-        studentName: userNames[attempt.userId] || `Student ${attempt.userId.slice(0, 4)}`,
+        studentName: getUserName(attempt.userId),
       }
     })
   }
+
+  const { getUserName, userNames } = useUserNames()
 
   const stats = getOverallStats()
   const coursePerformance = getCoursePerformance()

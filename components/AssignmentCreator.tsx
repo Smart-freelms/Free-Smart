@@ -89,6 +89,8 @@ export const AssignmentCreator: React.FC<AssignmentCreatorProps> = ({ user, cour
         submissionTypes: assignmentData.submissionTypes || ["text"],
         createdAt: assignmentData.createdAt || new Date(),
         updatedAt: new Date(),
+        scheduledPublishDate: assignmentData.scheduledPublishDate,
+        scheduledExpiryDate: assignmentData.scheduledExpiryDate,
       }
 
       await db.saveAssignment(assignment)

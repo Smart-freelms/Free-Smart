@@ -100,10 +100,10 @@ export const GradingInterface: React.FC<GradingInterfaceProps> = ({ user, assign
     return { status: "pending", color: "text-yellow-600", bg: "bg-yellow-100", icon: Clock }
   }
 
-  const { userNames } = useUserNames()
+  const { getUserName } = useUserNames()
 
   const getStudentName = (studentId: string) => {
-    return `Student ${studentId.slice(0, 4)}`
+    return getUserName(studentId)
   }
 
   if (isLoading) {

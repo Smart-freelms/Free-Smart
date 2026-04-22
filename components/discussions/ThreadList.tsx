@@ -18,12 +18,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   onGetRepliesCount,
   currentUserId,
 }) => {
-  const { getUserName } = useUserNames()
-
-  const getUserRole = (userId: string) => {
-    // Simplified for UI demonstration; ideally roles are part of the post/user object
-    return userId === "teacher1" || userId === currentUserId ? "teacher" : "student"
-  }
+  const { getUserName, getUserRole } = useUserNames()
 
   return (
     <div className="space-y-4">

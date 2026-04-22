@@ -104,9 +104,27 @@ export const GradeBook: React.FC<GradeBookProps> = ({ user, onBack }) => {
 
   const calculateStudentAverage = (studentId: string) => {
     const studentGrades = grades[studentId] || {}
-    const gradeValues = Object.values(studentGrades)
-    if (gradeValues.length === 0) return 0
-    return Math.round(gradeValues.reduce((sum, grade) => sum + grade, 0) / gradeValues.length)
+    let totalPercentage = 0
+    let count = 0
+
+    assignments.forEach(a => {
+      const g = studentGrades[`assignment-${a.id}`]
+      if (g !== undefined) {
+        totalPercentage += (g / a.maxPoints) * 100
+        count++
+      }
+    })
+
+    quizzes.forEach(q => {
+      const g = studentGrades[`quiz-${q.id}`]
+      if (g !== undefined) {
+        totalPercentage += g // Quiz grades are already percentages
+        count++
+      }
+    })
+
+    if (count === 0) return 0
+    return Math.round(totalPercentage / count)
   }
 
   const exportGrades = () => {
