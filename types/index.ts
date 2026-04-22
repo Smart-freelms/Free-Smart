@@ -3,7 +3,6 @@ export interface User {
   name: string
   email: string
   role: "student" | "teacher"
-  password: string // Added password field for authentication
   createdAt: Date
   isActive: boolean // Added active status for account management
   profilePicture?: string // Added optional profile picture

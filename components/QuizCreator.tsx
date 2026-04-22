@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Quiz, Question } from '../types';
 import { ArrowLeft, Save, Eye, EyeOff } from 'lucide-react';
-import { QuizTaker } from './QuizTaker';
 import { db } from '../utils/database';
 import { QuestionForm } from './quizzes/QuestionForm';
 import { QuestionList } from './quizzes/QuestionList';
@@ -40,16 +39,6 @@ export const QuizCreator: React.FC<QuizCreatorProps> = ({ user, editQuizId, onBa
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-
-  const mockUser: User = {
-    id: 'preview-user',
-    name: 'Preview Student',
-    email: 'preview@example.com',
-    role: 'student',
-    password: '',
-    createdAt: new Date(),
-    isActive: true
-  };
 
   useEffect(() => {
     if (editQuizId) {
