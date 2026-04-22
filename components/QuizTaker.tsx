@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Quiz, User, Question, QuizAttempt, QuizResult } from '../types';
 import { ArrowLeft, Clock, CheckCircle, AlertCircle, ArrowRight, Flag } from 'lucide-react';
 import { db } from '../utils/database';
@@ -87,40 +87,21 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   }, [quiz.id, user.id]);
 
   // Save session
-  useEffect(() => {
+  const saveSessionState = async (updates: any = {}) => {
     if (!isLoaded || showResults || !startTime) return;
-    const saveSession = async () => {
-      await db.saveQuizSession({
-        id: `${user.id}-${quiz.id}`,
-        userId: user.id,
-        quizId: quiz.id,
-        answers,
-        currentQuestionIndex,
-        timeRemaining,
-        startTime: startTime.toISOString(),
-        questionOrder: shuffledQuestions.map(q => q.id),
-        optionsMap: shuffledOptionsMap,
-        updatedAt: new Date().toISOString()
-      });
-    };
-    saveSession();
-  }, [answers, currentQuestionIndex, timeRemaining, isLoaded, showResults, shuffledQuestions, shuffledOptionsMap, startTime]);
-
-  const questions = React.useMemo(() => {
-    return quiz.shuffleQuestions ? shuffleArray(quiz.questions) : quiz.questions;
-  }, [quiz.id, quiz.questions, quiz.shuffleQuestions]);
-
-  const shuffledOptionsMap = React.useMemo(() => {
-    const map: Record<string, string[]> = {};
-    questions.forEach(q => {
-      if (q.options && quiz.shuffleOptions) {
-        map[q.id] = shuffleArray(q.options);
-      } else if (q.options) {
-        map[q.id] = q.options;
-      }
+    await db.saveQuizSession({
+      id: `${user.id}-${quiz.id}`,
+      userId: user.id,
+      quizId: quiz.id,
+      answers: updates.answers || answers,
+      currentQuestionIndex: updates.currentIndex !== undefined ? updates.currentIndex : currentQuestionIndex,
+      timeRemaining: updates.timeRemaining !== undefined ? updates.timeRemaining : timeRemaining,
+      startTime: startTime.toISOString(),
+      questionOrder: shuffledQuestions.map(q => q.id),
+      optionsMap: shuffledOptionsMap,
+      updatedAt: new Date().toISOString()
     });
-    return map;
-  }, [questions, quiz.shuffleOptions]);
+  };
 
   useEffect(() => {
     const now = new Date();
@@ -139,7 +120,13 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     if (timeRemaining === null || timeRemaining <= 0) return;
 
     const timer = setInterval(() => {
-      setTimeRemaining(prev => (prev !== null && prev > 0 ? prev - 1 : prev));
+      setTimeRemaining(prev => {
+        const newVal = (prev !== null && prev > 0 ? prev - 1 : prev);
+        if (newVal !== null && newVal % 5 === 0) {
+            saveSessionState({ timeRemaining: newVal });
+        }
+        return newVal;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
@@ -177,44 +164,16 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     }
   }, [questionTimeRemaining, showResults]);
 
-  useEffect(() => {
-    if (questionTimeRemaining === null) return;
-
-    const timer = setInterval(() => {
-      setQuestionTimeRemaining(prev => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          if (currentQuestionIndex === questions.length - 1) {
-            handleSubmit();
-          } else {
-            const newIndex = currentQuestionIndex + 1;
-            setCurrentQuestionIndex(newIndex);
-            saveSession({ currentIndex: newIndex });
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [questionTimeRemaining, currentQuestionIndex, questions.length]);
+  const handleAnswerChange = (answer: string | string[]) => {
+    const newAnswers = { ...answers, [shuffledQuestions[currentQuestionIndex].id]: answer };
+    setAnswers(newAnswers);
+    saveSessionState({ answers: newAnswers });
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const currentQuestion = shuffledQuestions[currentQuestionIndex];
-
-  const handleAnswerChange = (value: string | string[]) => {
-    const newAnswers = {
-      ...answers,
-      [currentQuestion.id]: value
-    };
-    setAnswers(newAnswers);
-    saveSession({ answers: newAnswers });
   };
 
   const calculateScore = () => {
@@ -301,7 +260,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
     if (currentQuestionIndex === shuffledQuestions.length - 1) {
       handleSubmit();
     } else {
-      setCurrentQuestionIndex(prev => prev + 1);
+      const newIndex = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(newIndex);
+      saveSessionState({ currentIndex: newIndex });
     }
   };
 
@@ -319,79 +280,86 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
               ? 'bg-gradient-to-r from-green-500 to-emerald-600'
               : 'bg-gradient-to-r from-red-500 to-pink-600'
           }`}>
-            <div className="text-center">
-              {results.passed ? (
-                <CheckCircle className="w-16 h-16 mx-auto mb-4" />
-              ) : (
-                <AlertCircle className="w-16 h-16 mx-auto mb-4" />
-              )}
-              <h2 className="text-3xl font-bold mb-2">
-                {results.passed ? 'Congratulations!' : 'Quiz Complete'}
-              </h2>
-              <p className="text-xl mb-4">
-                You scored {results.percentage}% ({results.earnedPoints}/{results.totalPoints} points)
-              </p>
-              <p className="opacity-90">
-                {results.passed
-                  ? `You passed! The passing score was ${quiz.passingScore}%`
-                  : `You need ${quiz.passingScore}% to pass. Keep practicing!`
-                }
-              </p>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-4xl font-bold mb-2">
+                  {results.passed ? 'Congratulations!' : 'Keep Practicing!'}
+                </h1>
+                <p className="text-lg opacity-90">
+                  {results.passed ? "You've passed the quiz!" : "You didn't reach the passing score this time."}
+                </p>
+              </div>
+              <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm">
+                <CheckCircle className="w-12 h-12" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white/10 p-4 rounded-lg">
+                <p className="text-sm opacity-80 mb-1">Score</p>
+                <p className="text-2xl font-bold">{results.earnedPoints} / {results.totalPoints}</p>
+              </div>
+              <div className="bg-white/10 p-4 rounded-lg">
+                <p className="text-sm opacity-80 mb-1">Percentage</p>
+                <p className="text-2xl font-bold">{results.percentage}%</p>
+              </div>
+              <div className="bg-white/10 p-4 rounded-lg">
+                <p className="text-sm opacity-80 mb-1">Status</p>
+                <p className="text-2xl font-bold uppercase">{results.passed ? 'Passed' : 'Failed'}</p>
+              </div>
+              <div className="bg-white/10 p-4 rounded-lg">
+                <p className="text-sm opacity-80 mb-1">Time Spent</p>
+                <p className="text-2xl font-bold">{formatTime(results.attempt.timeSpent)}</p>
+              </div>
             </div>
           </div>
 
           {/* Detailed Results */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
-            <h3 className="text-xl font-semibold text-gray-900 mb-6">Detailed Results</h3>
-
-            <div className="space-y-6">
-              {results.detailedResults.map((result, index: number) => (
-                <div
-                  key={result.questionId}
-                  className={`border rounded-lg p-4 ${
-                    result.isCorrect
-                      ? 'border-green-200 bg-green-50'
-                      : 'border-red-200 bg-red-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center">
-                      <span className="text-sm font-medium text-gray-600 mr-2">
-                        Q{index + 1}
-                      </span>
-                      {result.isCorrect ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <AlertCircle className="w-5 h-5 text-red-600" />
-                      )}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-8">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Detailed Review</h2>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {results.detailedResults.map((result, index) => (
+                <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-sm font-medium text-gray-500">Question {index + 1}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          result.isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {result.isCorrect ? 'Correct' : 'Incorrect'}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900">{result.question}</h3>
                     </div>
-                    <span className="text-sm text-gray-500">
-                      {result.points}/{result.maxPoints} points
-                    </span>
+                    <div className="text-right ml-4">
+                      <p className="text-sm font-bold text-gray-900">{result.points} / {result.maxPoints} pts</p>
+                    </div>
                   </div>
 
-                  <p className="text-gray-900 font-medium mb-3">{result.question}</p>
-
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-700">Your answer: </span>
-                      <span className={result.isCorrect ? 'text-green-700' : 'text-red-700'}>
-                        {result.userAnswer || 'No answer provided'}
-                      </span>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className={`p-3 rounded-lg ${result.isCorrect ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
+                      <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Your Answer</p>
+                      <p className={result.isCorrect ? 'text-green-700' : 'text-red-700'}>
+                        {result.userAnswer || <span className="italic">No answer provided</span>}
+                      </p>
                     </div>
                     {!result.isCorrect && (
-                      <div>
-                        <span className="font-medium text-gray-700">Correct answer: </span>
-                        <span className="text-green-700">{result.correctAnswer}</span>
-                      </div>
-                    )}
-                    {result.explanation && (
-                      <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-                        <span className="font-medium text-blue-900">Explanation: </span>
-                        <span className="text-blue-800">{result.explanation}</span>
+                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                        <p className="text-xs font-semibold text-gray-500 mb-1 uppercase">Correct Answer</p>
+                        <p className="text-blue-700">{result.correctAnswer}</p>
                       </div>
                     )}
                   </div>
+
+                  {result.explanation && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm">
+                      <span className="font-semibold text-gray-900">Explanation: </span>
+                      <span className="text-gray-700">{result.explanation}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -438,6 +406,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   }
 
   const renderQuestion = () => {
+    const currentQuestion = shuffledQuestions[currentQuestionIndex];
     if (!currentQuestion) return null;
 
     const options = getShuffledOptions(currentQuestion);
@@ -507,6 +476,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
   if (!isLoaded) {
     return <div className="min-h-screen flex items-center justify-center">Loading quiz session...</div>;
   }
+
+  const currentQuestion = shuffledQuestions[currentQuestionIndex];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -593,7 +564,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
             onClick={() => {
               const newIndex = Math.max(0, currentQuestionIndex - 1);
               setCurrentQuestionIndex(newIndex);
-              saveSession({ currentIndex: newIndex });
+              saveSessionState({ currentIndex: newIndex });
             }}
             disabled={currentQuestionIndex === 0}
             className="flex items-center px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -632,7 +603,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({ quiz, user, onComplete }) 
                 key={index}
                 onClick={() => {
                   setCurrentQuestionIndex(index);
-                  saveSession({ currentIndex: index });
+                  saveSessionState({ currentIndex: index });
                 }}
                 className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
                   index === currentQuestionIndex

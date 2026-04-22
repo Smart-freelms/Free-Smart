@@ -63,18 +63,7 @@ export const DiscussionForum: React.FC<DiscussionForumProps> = ({ user, course, 
       parentId: postId
     })
 
-    await loadPosts()
-    if (selectedPost?.id === postId) {
-      const updatedPosts = await db.getDiscussionPosts(course.id)
-      const updatedPost = updatedPosts.find(p => p.id === postId)
-      if (updatedPost) setSelectedPost(updatedPost)
-    }
-  }
-
     const updatedPosts = await loadPosts()
-
-    // If the selected post itself was the one replied to, refresh it
-    // although for root posts, only the replies list (calculated from all posts) changes.
     if (selectedPost?.id === postId) {
       const updatedPost = updatedPosts.find(p => p.id === postId)
       if (updatedPost) setSelectedPost(updatedPost)

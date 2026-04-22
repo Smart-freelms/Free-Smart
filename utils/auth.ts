@@ -13,28 +13,6 @@ export const getCurrentUser = async (): Promise<User | null> => {
       .from('profiles')
       .select('*')
       .eq('id', session.user.id)
-      .single()
-
-    if (profile) {
-      const newUser: User = {
-        id: session.user.id,
-        name: profile.name || session.user.user_metadata.name || 'User',
-        email: session.user.email!,
-        role: profile.role || session.user.user_metadata.role || 'student',
-        createdAt: new Date(session.user.created_at),
-        isActive: true,
-        password: '', // Password is not stored in our profile table
-      }
-      await db.saveUser(newUser)
-      return newUser
-
-  const user = await db.getUserById(session.user.id)
-  if (!user) {
-    // If user is in Supabase Auth but not in local DB, we should sync it
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
       .maybeSingle()
 
     if (profile) {
@@ -45,7 +23,6 @@ export const getCurrentUser = async (): Promise<User | null> => {
         role: profile.role || session.user.user_metadata.role || 'student',
         createdAt: new Date(session.user.created_at),
         isActive: true,
-        password: '', // Password is not stored in our profile table
       }
       await db.saveUser(newUser)
       return newUser
@@ -76,7 +53,6 @@ export const login = async (email: string, name: string, role: "student" | "teac
       role,
       createdAt: new Date(),
       isActive: true,
-      password: '',
     }
   }
 
@@ -105,27 +81,12 @@ export const signUp = async (
     name,
     email,
     role,
-    password: '', // Don't store password locally
     createdAt: new Date(),
     isActive: true,
   }
 
   // Save to local IndexedDB for immediate availability/offline support
-  // The Supabase 'profiles' table is handled by a database trigger (on_auth_user_created)
   await db.saveUser(user)
-
-  // Also save to Supabase profiles table for persistence
-  try {
-    await supabase.from('profiles').insert({
-      id: data.user.id,
-      name,
-      email,
-      role,
-      is_active: true
-    })
-  } catch (e) {
-    console.error("Failed to save profile to Supabase:", e)
-  }
 
   return user
 }
@@ -146,7 +107,6 @@ export const signIn = async (email: string, password: string): Promise<User> => 
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
-      .single()
       .maybeSingle()
 
     user = {
@@ -156,7 +116,6 @@ export const signIn = async (email: string, password: string): Promise<User> => 
       role: profile?.role || data.user.user_metadata.role || 'student',
       createdAt: new Date(data.user.created_at),
       isActive: true,
-      password: '',
     }
     await db.saveUser(user)
   }
@@ -199,13 +158,11 @@ export const logout = async (): Promise<void> => {
 }
 
 export const verifyIdentityForReset = async (email: string, name: string): Promise<string> => {
-  // Supabase handles this via email, but for compatibility:
   await forgotPassword(email)
   return "email_sent"
 }
 
 export const verifySecurityAnswer = async (email: string, answer: string, token: string): Promise<boolean> => {
-  // Simplified for demo compatibility
   return true
 }
 
@@ -237,7 +194,6 @@ export const logAuthEvent = async (userId: string, event: string, details?: Reco
 
   await db.saveAuthLog(logEntry as any)
 
-  // Mirror to Supabase
   try {
     await supabase.from('auth_logs').insert({
       user_id: userId,
